@@ -4,6 +4,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <base target="_top">
 <title>水翠 経営管理ツール</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
 :root{color-scheme:light dark}
 body{margin:0;font:14px/1.5 system-ui,-apple-system,sans-serif;background:#faf9f7}
@@ -352,9 +355,12 @@ let state=loadLocal();
 let db=null,lastPushed="";
 function loadLocal(){try{const r=localStorage.getItem(LS);if(!r)return DEF();return Object.assign(DEF(),JSON.parse(r));}catch(e){return DEF();}}
 function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(state));}catch(e){}}
-let lastV=0,pushT=null,pushing=false,pushAgain=false,currentUser=null;
-function save(){saveLocal();}
-async function pushCloud(){}
+let lastV="",pushT=null,pushing=false,pushAgain=false,currentUser=null,cloudCfg=null,fs=null;
+function save(){saveLocal();if(!db)return;setCloud("☁ 保存中…","var(--muted)");clearTimeout(pushT);pushT=setTimeout(pushCloud,400);}
+async function pushCloud(){if(!db||!fs)return;if(pushing){pushAgain=true;return;}pushing=true;
+  try{const v=uid();lastV=v;await fs.doc("app/state").set({v,at:new Date().toISOString(),by:(currentUser&&currentUser.email)||"",json:JSON.stringify(state)});const t=new Date();setCloud("☁ 共有保存済み "+String(t.getHours()).padStart(2,"0")+":"+String(t.getMinutes()).padStart(2,"0"),"var(--income)");}
+  catch(e){setCloud("⚠ 共有保存に失敗（この端末には保存済み）"+(e&&e.code?"："+e.code:"")+"。自動で再試行します","var(--expense)");setTimeout(()=>{if(!pushing)pushCloud();},8000);}
+  finally{pushing=false;if(pushAgain){pushAgain=false;pushCloud();}}}
 function hasData(s){return (s.clients&&s.clients.length)||(s.docs&&s.docs.length)||(s.txns&&s.txns.length)||(s.todos&&s.todos.length);}
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const yen=n=>{n=Math.round(+n||0);return(n<0?"−¥":"¥")+Math.abs(n).toLocaleString("ja-JP");};
@@ -584,10 +590,16 @@ window.acctList=function(){const el=$("#cats");if(!el)return;const ty=($("#f_typ
 /* ---------- 書類の写真/PDFから記録（AI読み取り） ---------- */
 let pdfLibP=null;
 const blobToB64=blob=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(",")[1]||"");r.onerror=()=>rej(r.error||new Error("read failed"));r.readAsDataURL(blob);});
-async function filePut(file){const id="f"+uid();await idbPut(id,file);return id;}
-const fileGet=idbGet;
+/* 添付：縮小済み JPEG・PDF を Firestore の files/{id} に base64 で保存（900KB まで）。端末の IndexedDB は控え */
+async function filePut(file){const id="f"+uid();try{await idbPut(id,file);}catch(e){}
+  try{if(fs&&file.size<=900*1024){await fs.doc("files/"+id).set({name:file.name||"file",mime:file.type||"application/octet-stream",size:file.size,b64:await blobToB64(file),at:new Date().toISOString()});}}catch(e){}
+  return id;}
+async function fileGet(id){try{const c=await idbGet(id);if(c)return c;}catch(e){}if(!fs)return null;const d=await fs.doc("files/"+id).get();if(!d.exists)return null;const x=d.data();const b=b64ToBlob(x.b64,x.mime);try{await idbPut(id,b);}catch(e){}return b;}
+const b64ToBlob=(b64,mime)=>{const bin=atob(b64);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Blob([u],{type:mime||"application/octet-stream"});};
 /* Gemini をブラウザから直接呼ぶ。キーはこの端末の設定にだけ保存 */
-const GKEY=()=>{try{return(localStorage.getItem("suisui_gemini_key")||"").trim();}catch(e){return"";}};
+const GKEY=()=>{let k="";try{k=(localStorage.getItem("suisui_gemini_key")||"").trim();}catch(e){}return k||((cloudCfg&&cloudCfg.geminiKey)||"").trim();};
+/* キーを共有設定にも保存（許可された人なら全端末で使える） */
+async function saveKeyShared(k){try{localStorage.setItem("suisui_gemini_key",k);}catch(e){}try{if(fs&&cloudCfg){await fs.doc("app/config").set({geminiKey:k},{merge:true});cloudCfg.geminiKey=k;}}catch(e){}}
 async function geminiRaw(payload){const key=GKEY();if(!key)throw new Error("Gemini の API キーが未設定です（事業者設定で入力してください）");
   let model="gemini-3.6-flash";try{model=localStorage.getItem("suisui_gemini_model")||model;}catch(e){}
   const call=async m=>{const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+m+":generateContent?key="+encodeURIComponent(key),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});return{code:r.status,body:await r.text()};};
@@ -600,9 +612,9 @@ const ai={async json(prompt,opt){opt=opt||{};const parts=[{text:prompt}];for(con
   async chat(sys,contents,tools){const payload={systemInstruction:{parts:[{text:sys}]},contents,generationConfig:{temperature:0.4}};if(tools&&tools.length)payload.tools=[{functionDeclarations:tools}];const parts=await geminiRaw(payload);return{text:parts.map(p=>p.text||"").join("").trim(),calls:parts.filter(p=>p.functionCall).map(p=>({name:p.functionCall.name,args:p.functionCall.args||{}})),parts};}};
 /* キー未設定なら、その場で入力→接続確認→保存（初回だけ） */
 window.askGeminiKey=()=>new Promise(res=>{const o=document.createElement("div");o.className="overlay";o.style.zIndex="95";o.innerHTML=`<div class="modal" style="max-width:520px"><h3>Gemini の API キーを入力</h3><p style="margin:0 0 12px;font-size:13px;color:var(--text2)">写真・PDF の読み取りとスイ（AI）に使います。この端末にだけ保存され、入力は初回の1回だけです。<br>キーは <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--teal-d)">aistudio.google.com/apikey</a> で無料で作れます（「鍵をコピー」で取得）。</p><input id="gk_in" type="password" autocomplete="off" placeholder="AIza… または AQ.… を貼り付け"><p id="gk_msg" style="font-size:12px;color:var(--expense);margin:8px 0 0;min-height:18px"></p><div class="modal-foot"><span></span><span style="display:flex;gap:8px"><button class="btn ghost" id="gk_no">あとで</button><button class="btn" id="gk_ok">接続して保存</button></span></div></div>`;document.body.appendChild(o);const close=v=>{o.remove();res(v);};o.querySelector("#gk_no").onclick=()=>close(false);
-  o.querySelector("#gk_ok").onclick=async()=>{const v=o.querySelector("#gk_in").value.trim();if(!v){o.querySelector("#gk_msg").textContent="キーを入力してください";return;}const b=o.querySelector("#gk_ok");b.disabled=true;b.textContent="確認中…";try{localStorage.setItem("suisui_gemini_key",v);const r=await ai.json('{"ok":true} とだけ返してください');if(!(r&&r.ok))throw new Error("応答の形式が想定と違います");setCloud("💾 この端末に保存（Gemini 接続済み）","var(--income)");toast("Gemini に接続できました");close(true);}catch(e){try{localStorage.removeItem("suisui_gemini_key");}catch(_){}o.querySelector("#gk_msg").textContent=e.message||"接続できませんでした";b.disabled=false;b.textContent="接続して保存";}};
+  o.querySelector("#gk_ok").onclick=async()=>{const v=o.querySelector("#gk_in").value.trim();if(!v){o.querySelector("#gk_msg").textContent="キーを入力してください";return;}const b=o.querySelector("#gk_ok");b.disabled=true;b.textContent="確認中…";try{localStorage.setItem("suisui_gemini_key",v);const r=await ai.json('{"ok":true} とだけ返してください');if(!(r&&r.ok))throw new Error("応答の形式が想定と違います");await saveKeyShared(v);toast("Gemini に接続できました（この設定は許可されたメンバー全員で使えます）");close(true);}catch(e){try{localStorage.removeItem("suisui_gemini_key");}catch(_){}o.querySelector("#gk_msg").textContent=e.message||"接続できませんでした";b.disabled=false;b.textContent="接続して保存";}};
   o.querySelector("#gk_in").addEventListener("keydown",e=>{if(e.key==="Enter")o.querySelector("#gk_ok").click();});setTimeout(()=>o.querySelector("#gk_in").focus(),0);});
-window.aiTest=async function(){const b=$("#s_gtest");if(b){b.disabled=true;b.textContent="確認中…";}try{localStorage.setItem("suisui_gemini_key",$("#s_gkey").value.trim());const r=await ai.json('{"ok":true} とだけ返してください');toast(r&&r.ok?"Gemini に接続できました。写真の読み取りとスイが使えます":"応答は来ましたが形式が想定と違います");}catch(e){toast(e.message||"接続できませんでした");}finally{if(b){b.disabled=false;b.textContent="接続テスト";}}};
+window.aiTest=async function(){const b=$("#s_gtest");if(b){b.disabled=true;b.textContent="確認中…";}try{localStorage.setItem("suisui_gemini_key",$("#s_gkey").value.trim());const r=await ai.json('{"ok":true} とだけ返してください');await saveKeyShared($("#s_gkey").value.trim());toast(r&&r.ok?"Gemini に接続できました。写真の読み取りとスイが使えます":"応答は来ましたが形式が想定と違います");}catch(e){toast(e.message||"接続できませんでした");}finally{if(b){b.disabled=false;b.textContent="接続テスト";}}};
 function loadPdfLib(){if(pdfLibP)return pdfLibP;pdfLibP=new Promise((res,rej)=>{const sc=document.createElement("script");sc.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";sc.onload=()=>{try{const L=window.pdfjsLib;L.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";res(L);}catch(e){rej(e);}};sc.onerror=()=>rej(new Error("pdf script load failed"));document.head.appendChild(sc);});return pdfLibP;}
 async function pdfFirstPageBlob(file){const L=await loadPdfLib();const buf=await file.arrayBuffer();const pdf=await L.getDocument({data:buf}).promise;const page=await pdf.getPage(1);const vp=page.getViewport({scale:2});const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;return await new Promise(r=>cv.toBlob(r,"image/png"));}
 /* ---------- 書類を登録（ドロップ→AI読取→登録・ファイルはIndexedDBへ） ---------- */
@@ -945,14 +957,15 @@ function vSettings(){const s=state.settings;
     <div class="row3"><div class="field"><label>開業日（元入金の日付）</label><input type="date" id="s_od" value="${esc(s.openDate||"")}"></div>
       <div class="field"><label>開業時の預金残高（円）</label><input type="number" id="s_ob" value="${+s.openBank||0}"></div>
       <div class="field"><label>開業時の現金（円）</label><input type="number" id="s_oc" value="${+s.openCash||0}"></div></div>
-    <h2 class="sec" style="margin-top:8px;font-size:15px">AI（Gemini）の設定 <small>この端末にだけ保存されます</small></h2>
-    <div class="field"><label>Gemini API キー（写真・PDFの読み取りとスイに使用）</label><div style="display:flex;gap:8px"><input id="s_gkey" type="password" autocomplete="off" placeholder="AIza… または AQ.…" value="${esc(GKEY())}"><button type="button" class="btn ghost" id="s_gtest" onclick="aiTest()" style="white-space:nowrap">接続テスト</button></div><p class="recnote">キーは https://aistudio.google.com/apikey で作成（無料）。スマホなど別の端末でも、その端末で一度入力します。</p></div>
+    <h2 class="sec" style="margin-top:8px;font-size:15px">共有と AI の設定 <small>Google ログインしたメンバーで共有</small></h2>
+    <div class="field"><label>使える人（Google アカウントのメール・改行またはカンマ区切り）</label><textarea id="s_members" rows="3" placeholder="suisui.company2025@gmail.com&#10;staff@gmail.com">${esc(((cloudCfg&&cloudCfg.allowed)||[]).join("\n"))}</textarea><p class="recnote">ここに書いた人だけがログインしてデータを見られます。ログイン中：${esc((currentUser&&currentUser.email)||"（未ログイン）")}　<button type="button" class="linkbtn" onclick="doLogout()">ログアウト</button></p></div>
+    <div class="field"><label>Gemini API キー（写真・PDFの読み取りとスイに使用。メンバー全員で共有）</label><div style="display:flex;gap:8px"><input id="s_gkey" type="password" autocomplete="off" placeholder="AIza… または AQ.…" value="${esc(GKEY())}"><button type="button" class="btn ghost" id="s_gtest" onclick="aiTest()" style="white-space:nowrap">接続テスト</button></div><p class="recnote">キーは https://aistudio.google.com/apikey で作成（無料）。</p></div>
     <div class="field"><label>青色申告特別控除</label><select id="s_ded"><option value="650000" ${(+s.deduction||650000)===650000?"selected":""}>65万円（複式簿記＋e-Tax または電子帳簿保存）</option><option value="550000" ${+s.deduction===550000?"selected":""}>55万円（複式簿記・紙で提出）</option><option value="100000" ${+s.deduction===100000?"selected":""}>10万円（簡易簿記）</option><option value="0" ${+s.deduction===0?"selected":""}>白色申告（控除なし）</option></select></div>
     <p class="recnote" style="margin-bottom:12px">「お金の管理」に記録した開業前の元手（自分のお金）は、ここに入れると帳簿の「元入金」になり、残高の起点になります。</p>
     <button class="btn" onclick="saveSettings()">保存する</button> <button class="btn ghost" onclick="openTrash()">削除した記録（${(state.trash||[]).length}件）</button>
   </div>`;
 }
-window.saveSettings=function(){Object.assign(state.settings,{name:$("#s_name").value,rep:$("#s_rep").value,addr:$("#s_addr").value,tel:$("#s_tel").value,mail:$("#s_mail").value,invoiceNo:$("#s_inv").value,bank:$("#s_bank").value,openDate:$("#s_od").value||"",openBank:Math.max(0,Math.round(+$("#s_ob").value||0)),openCash:Math.max(0,Math.round(+$("#s_oc").value||0)),deduction:+$("#s_ded").value||0});save();try{const k=$("#s_gkey");if(k)localStorage.setItem("suisui_gemini_key",k.value.trim());}catch(e){}setCloud(GKEY()?"💾 この端末に保存（Gemini 接続済み）":"💾 この端末に保存・Gemini キー未設定（事業者設定）",GKEY()?"var(--income)":"var(--warn)");toast("保存しました");};
+window.saveSettings=function(){Object.assign(state.settings,{name:$("#s_name").value,rep:$("#s_rep").value,addr:$("#s_addr").value,tel:$("#s_tel").value,mail:$("#s_mail").value,invoiceNo:$("#s_inv").value,bank:$("#s_bank").value,openDate:$("#s_od").value||"",openBank:Math.max(0,Math.round(+$("#s_ob").value||0)),openCash:Math.max(0,Math.round(+$("#s_oc").value||0)),deduction:+$("#s_ded").value||0});save();(async()=>{try{const k=$("#s_gkey");if(k&&k.value.trim())await saveKeyShared(k.value.trim());const m=$("#s_members");if(m&&fs&&cloudCfg){const list=[...new Set(m.value.split(/[\s,]+/).map(x=>x.trim().toLowerCase()).filter(x=>x.includes("@")))];if(currentUser&&!list.includes(currentUser.email))list.unshift(currentUser.email);await fs.doc("app/config").set({allowed:list},{merge:true});cloudCfg.allowed=list;}}catch(e){toast("共有設定の保存に失敗しました："+((e&&e.code)||""));}})();toast("保存しました");};
 
 /* ---------- PRODUCTS (商品マスタ) ---------- */
 function vProducts(){
@@ -2148,7 +2161,31 @@ render();
 function setCloud(txt,color){let el=document.getElementById("cloudStat");if(!el){el=document.createElement("div");el.id="cloudStat";el.style.cssText="font-size:10.5px;text-align:center;margin-top:2px;line-height:1.45";const f=document.querySelector(".side-foot");if(f)f.appendChild(el);}el.textContent=txt;el.style.color=color;
   const tp=document.getElementById("cloudTop");if(tp){tp.textContent=txt.charAt(0)==="☁"?"☁":"⚠";tp.style.color=color;tp.title=txt;tp.setAttribute("aria-label",txt);}}
 setCloud("☁ 同期を確認中…","var(--muted)");
-setCloud(GKEY()?"💾 この端末に保存（Gemini 接続済み）":"💾 この端末に保存・Gemini キー未設定（事業者設定）",GKEY()?"var(--income)":"var(--warn)");
+const FIREBASE_CONFIG={"apiKey":"AIzaSyCOARjotYdu5tkIxJA1n_63Kf91QhveOlk","authDomain":"suisui-d18b7.firebaseapp.com","projectId":"suisui-d18b7","storageBucket":"suisui-d18b7.firebasestorage.app","messagingSenderId":"560995888926","appId":"1:560995888926:web:6253641f7c4e9a2bd8230f"};
+function loginScreen(html){let o=$("#loginov");if(!o){o=document.createElement("div");o.id="loginov";o.className="overlay";o.style.cssText="z-index:200;align-items:center;background:var(--ground)";document.body.appendChild(o);}o.innerHTML=`<div class="modal" style="max-width:420px;text-align:center"><img src="${(document.querySelector('.brand img.logo-l')||{}).src||''}" style="width:110px;margin:4px auto 10px;display:block"><h3 style="margin-bottom:8px">水翠 経営管理ツール</h3>${html}</div>`;return o;}
+window.doLogin=async function(){try{const p=new firebase.auth.GoogleAuthProvider();p.setCustomParameters({prompt:"select_account"});await firebase.auth().signInWithPopup(p);}catch(e){if(e&&/popup/i.test(e.code||"")){try{await firebase.auth().signInWithRedirect(new firebase.auth.GoogleAuthProvider());}catch(_){}}else toast("ログインできませんでした："+((e&&e.code)||""));}};
+window.doLogout=async function(){try{await firebase.auth().signOut();}catch(e){}location.reload();};
+(async function initCloud(){
+  if(!FIREBASE_CONFIG||typeof firebase==="undefined"){setCloud("⚠ 共有設定が未登録（この端末のみ保存）","var(--warn)");return;}
+  try{firebase.initializeApp(FIREBASE_CONFIG);fs=firebase.firestore();}catch(e){setCloud("⚠ 共有に接続できません（この端末のみ保存）","var(--warn)");return;}
+  loginScreen(`<p style="font-size:13px;color:var(--text2);margin:0 0 16px">Google アカウントでログインすると、水翠のデータを全端末で共有できます。</p><button class="btn" onclick="doLogin()" style="width:100%;justify-content:center">Google でログイン</button>`);
+  firebase.auth().onAuthStateChanged(async user=>{
+    if(!user){loginScreen(`<p style="font-size:13px;color:var(--text2);margin:0 0 16px">Google アカウントでログインすると、水翠のデータを全端末で共有できます。</p><button class="btn" onclick="doLogin()" style="width:100%;justify-content:center">Google でログイン</button>`);return;}
+    const email=(user.email||"").toLowerCase();currentUser={email,name:user.displayName||""};
+    /* 許可メンバーの確認。設定がまだ無ければ、最初にログインした人（＝中田さん）が管理者として作る */
+    let cfg=null;try{const d=await fs.doc("app/config").get();if(d.exists)cfg=d.data();}catch(e){}
+    if(!cfg){try{cfg={allowed:[email],owner:email,geminiKey:"",createdAt:new Date().toISOString()};await fs.doc("app/config").set(cfg);}catch(e){loginScreen(`<p style="font-size:13px;margin:0 0 12px">このアカウント（${esc(email)}）には利用権限がありません。<br>管理者（中田）に、このメールアドレスの追加を依頼してください。</p><button class="btn ghost" onclick="doLogout()">別のアカウントでログイン</button>`);return;}}
+    if(!(cfg.allowed||[]).map(x=>String(x).toLowerCase()).includes(email)){loginScreen(`<p style="font-size:13px;margin:0 0 12px">このアカウント（${esc(email)}）には利用権限がありません。<br>管理者（中田）に、このメールアドレスの追加を依頼してください。</p><button class="btn ghost" onclick="doLogout()">別のアカウントでログイン</button>`);return;}
+    cloudCfg=cfg;currentUser.owner=cfg.owner===email;const lo=$("#loginov");if(lo)lo.remove();
+    try{const snap=await fs.doc("app/state").get();
+      if(snap.exists){const h=snap.data();lastV=h.v||"";const data=JSON.parse(h.json||"{}");state=Object.assign(DEF(),data);saveLocal();render();}
+      db=true;if(!snap.exists&&hasData(state))pushCloud();
+      fs.doc("app/state").onSnapshot(s=>{try{if(!s.exists)return;const h=s.data();if(!h.v||h.v===lastV)return;const data=JSON.parse(h.json||"{}");lastV=h.v;if(JSON.stringify(Object.assign(DEF(),data))===JSON.stringify(state))return;state=Object.assign(DEF(),data);saveLocal();if(!document.querySelector(".overlay"))render();toast("他の端末での変更を取り込みました");}catch(e){}});
+      fs.doc("app/config").onSnapshot(s=>{if(s.exists)cloudCfg=s.data();});
+      setCloud("☁ 共有保存 有効・"+email,"var(--income)");
+    }catch(e){db=false;setCloud("⚠ 共有データを読めません（"+((e&&e.code)||"")+"）","var(--expense)");}
+  });
+})();
 </script>
 
 </body></html>
