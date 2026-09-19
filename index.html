@@ -2222,7 +2222,7 @@ render();
 function setCloud(txt,color){let el=document.getElementById("cloudStat");if(!el){el=document.createElement("div");el.id="cloudStat";el.style.cssText="font-size:10.5px;text-align:center;margin-top:2px;line-height:1.45";const f=document.querySelector(".side-foot");if(f)f.appendChild(el);}el.textContent=txt;el.style.color=color;
   const tp=document.getElementById("cloudTop");if(tp){tp.textContent=txt.charAt(0)==="☁"?"☁":"⚠";tp.style.color=color;tp.title=txt;tp.setAttribute("aria-label",txt);}}
 setCloud("☁ 同期を確認中…","var(--muted)");
-const FIREBASE_CONFIG={"apiKey":"AIzaSyCOARjotYdu5tkIxJA1n_63Kf91QhveOlk","authDomain":"suisui-d18b7.firebaseapp.com","projectId":"suisui-d18b7","storageBucket":"suisui-d18b7.firebasestorage.app","messagingSenderId":"560995888926","appId":"1:560995888926:web:6253641f7c4e9a2bd8230f"};
+const FIREBASE_CONFIG={"apiKey":"AIzaSyDJxjXL677VWWvOGsmD8rIvPmtSI_BZyHE","authDomain":"suisui-japan.firebaseapp.com","projectId":"suisui-japan","storageBucket":"suisui-japan.firebasestorage.app","messagingSenderId":"551755520984","appId":"1:551755520984:web:2ec9194a291001019b30ad"};
 /* 2026-09-19 引き継ぎ保証：このアドレスは許可リストの状態に関係なく常に管理者として入れる（firestore.rules の root() と対応） */
 const ROOT_ADMIN="k.nakada@suisui-japan.com";
 function loginScreen(html){let o=$("#loginov");if(!o){o=document.createElement("div");o.id="loginov";o.className="overlay";o.style.cssText="z-index:200;align-items:center;background:var(--ground)";document.body.appendChild(o);}o.innerHTML=`<div class="modal" style="max-width:420px;text-align:center"><img src="${(document.querySelector('.brand img.logo-l')||{}).src||''}" style="width:110px;margin:4px auto 10px;display:block"><h3 style="margin-bottom:8px">水翠 経営管理ツール</h3>${html}</div>`;return o;}
