@@ -17,40 +17,44 @@ img{max-width:100%}
 <title>水翠 経営管理</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap">
 <style>
 :root{
-  --ground:#F4F6F8; --surface:#FFFFFF; --surface2:#EEF1F4; --rail:#E7EBEF;
-  --navy:#1B2A4A; --ink:#1B2A4A; --teal:#1D5FBF; --teal-d:#123E85; --teal-bg:#E7EEFC; --kraft:#4A5B72; --kraft-bg:#EAEDF2;
-  --text:#1B2A4A; --text2:#4F5E73; --muted:#64748B; --border:#DDE5E5; --border2:#C9D4D5;
-  --income:#2F7D5B; --income-bg:#E2F1E9; --expense:#B5523B; --expense-bg:#F7E6E0;
-  --warn:#A8741A; --warn-bg:#F6ECD6;
-  --shadow:0 1px 2px rgba(27,42,74,.06),0 8px 24px rgba(27,42,74,.06);
-  --lift:0 12px 40px rgba(27,42,74,.16);
-  --font-h:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
-  --font-b:"Noto Sans JP","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
-  --font-m:"Noto Sans Mono","SFMono-Regular",Menlo,monospace;
-  --r:12px;
+  /* PayPay App Style Guide に準拠した配色（PayPay Red・PayPay Gradation はガイドの規定によりロゴ・主要機能専用のため使わない）
+     背景 White #FFFFFF／Base #F7F7F7、文字 #242323・#606060・#909090・#BABABA、Navy #002970、Action #3895FF、機能色 Success #20BF7A／Error #FD5C5C／Caution #FFB900
+     緑・黄の文字はそのままだとコントラスト3:1（ガイドの基準）に届かないため、文字用に同系色を暗くして使う */
+  --ground:#F7F7F7; --surface:#FFFFFF; --surface2:#F7F7F7; --rail:#FFFFFF; --pressed:#F2F2F2;
+  --navy:#002970; --ink:#002970; --teal:#3895FF; --teal-d:#3286FF; --teal-bg:#E5F1FF; --kraft:#606060; --kraft-bg:#EEEEEE;
+  --text:#242323; --text2:#606060; --muted:#909090; --disabled:#BABABA; --border:#EEEEEE; --border2:#DDDDDD;
+  --income:#148A57; --income-dot:#20BF7A; --income-bg:#DFF7ED; --expense:#FD5C5C; --expense-bg:#FFE5E5;
+  --warn:#A87800; --warn-dot:#FFB900; --warn-bg:#FFF7E5;
+  --shadow:0 2px 6px rgba(0,0,0,.08);
+  --lift:0 6px 15px rgba(0,0,0,.15);
+  --high:0 8px 20px rgba(0,0,0,.3);
+  --font-h:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-b:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --font-m:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+  --r:8px; --r-sheet:20px;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --ground:#0E1517; --surface:#162024; --surface2:#1C282D; --rail:#121B1E;
-  --navy:#0B1113; --ink:#9FC3D0; --teal:#6FA8E8; --teal-d:#8FBEF2; --teal-bg:#152A44; --kraft:#8FA3BE; --kraft-bg:#1E2733;
-  --text:#E5ECEC; --text2:#A5B4B8; --muted:#7E8F97; --border:#24343A; --border2:#2F434A;
-  --income:#5BBF92; --income-bg:#15302A; --expense:#E27F66; --expense-bg:#3A2420;
-  --warn:#D6A54A; --warn-bg:#33291A;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3); --lift:0 12px 40px rgba(0,0,0,.5);
+  --ground:#121417; --surface:#1C1F24; --surface2:#24282E; --rail:#1C1F24; --pressed:#2A2F36;
+  --navy:#0E1A33; --ink:#BBCFF2; --teal:#4DA0FF; --teal-d:#7FB9FF; --teal-bg:#1A2B45; --kraft:#BABABA; --kraft-bg:#2A2E35;
+  --text:#EEEEEE; --text2:#BABABA; --muted:#9A9A9A; --disabled:#606060; --border:#2A2E35; --border2:#3A3F47;
+  --income:#52CC97; --income-dot:#52CC97; --income-bg:#16322A; --expense:#FD7A7A; --expense-bg:#3A2224;
+  --warn:#FFC733; --warn-dot:#FFC733; --warn-bg:#33291A;
+  --shadow:0 2px 6px rgba(0,0,0,.4); --lift:0 6px 15px rgba(0,0,0,.5); --high:0 8px 20px rgba(0,0,0,.6);
 }}
 :root[data-theme="dark"]{
-  --ground:#0E1517; --surface:#162024; --surface2:#1C282D; --rail:#121B1E;
-  --navy:#0B1113; --ink:#9FC3D0; --teal:#6FA8E8; --teal-d:#8FBEF2; --teal-bg:#152A44; --kraft:#8FA3BE; --kraft-bg:#1E2733;
-  --text:#E5ECEC; --text2:#A5B4B8; --muted:#7E8F97; --border:#24343A; --border2:#2F434A;
-  --income:#5BBF92; --income-bg:#15302A; --expense:#E27F66; --expense-bg:#3A2420;
-  --warn:#D6A54A; --warn-bg:#33291A;
-  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3); --lift:0 12px 40px rgba(0,0,0,.5);
+  --ground:#121417; --surface:#1C1F24; --surface2:#24282E; --rail:#1C1F24; --pressed:#2A2F36;
+  --navy:#0E1A33; --ink:#BBCFF2; --teal:#4DA0FF; --teal-d:#7FB9FF; --teal-bg:#1A2B45; --kraft:#BABABA; --kraft-bg:#2A2E35;
+  --text:#EEEEEE; --text2:#BABABA; --muted:#9A9A9A; --disabled:#606060; --border:#2A2E35; --border2:#3A3F47;
+  --income:#52CC97; --income-dot:#52CC97; --income-bg:#16322A; --expense:#FD7A7A; --expense-bg:#3A2224;
+  --warn:#FFC733; --warn-dot:#FFC733; --warn-bg:#33291A;
+  --shadow:0 2px 6px rgba(0,0,0,.4); --lift:0 6px 15px rgba(0,0,0,.5); --high:0 8px 20px rgba(0,0,0,.6);
 }
 *{box-sizing:border-box}
 html,body{margin:0}
-body{background:var(--ground);color:var(--text);font-family:var(--font-b);font-size:16px;line-height:1.3;-webkit-font-smoothing:antialiased}
+body{background:var(--ground);color:var(--text);font-family:var(--font-b);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;font-feature-settings:"palt" 0}
 button{font-family:inherit}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 .app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
@@ -376,6 +380,110 @@ a.tel:hover{text-decoration:underline}
 .kpi-link{cursor:pointer;transition:box-shadow .15s,transform .15s}
 .kpi-link:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
 .kpi-link:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
+/* ===================== PayPay App Style Guide 準拠のコンポーネント =====================
+   角丸は 8px（カード・ボタン）／20px（ハーフシート）の2種類だけ。影は Low／Middle／High の3段階。余白は4の倍数。 */
+/* Layout：デスクトップは画面端40px、スマホは16px。要素間は 8/12/16px */
+.main{padding:24px 40px 96px}
+.head{margin-bottom:24px;align-items:center}
+.head h1{font-size:20px;letter-spacing:0}
+.head p{font-size:14px;margin-top:4px}
+.sec{font-size:16px;letter-spacing:0;margin:32px 0 12px}
+h2.sec small{font-size:12px;color:var(--muted)}
+.grid{gap:16px}
+.pad{padding:16px}
+/* Card：白・角丸8px・Low-Shadow。枠線は使わず影で階層を示す（同じ階層には同じ影） */
+.card,.kpi{border:0;border-radius:var(--r);box-shadow:var(--shadow)}
+.kpi{padding:16px}
+.kpi .lab{font-size:12px;letter-spacing:0;color:var(--text2)}
+.kpi .val{font-family:var(--font-m);font-size:28px;letter-spacing:0}
+.kpi .sub{font-size:12px}
+.kpi.hero{background:var(--navy);box-shadow:var(--lift)}
+.kpi.hero .lab,.kpi.hero .sub{color:rgba(255,255,255,.78)}
+/* 価格：「円」は価格の数字より小さく（24px以上の価格は1/2） */
+.yen{font-size:.5em;font-weight:700;margin-left:2px;letter-spacing:0}
+/* Buttons：Primary #3895FF／Secondary 白＋青枠／Tertiary 文字のみ。Label 14 Bold・角丸8px */
+.btn{background:var(--teal);color:#fff;border-radius:var(--r);font-size:14px;font-weight:700;padding:0 20px;min-height:44px;justify-content:center;transition:background .12s,color .12s}
+.btn:hover{filter:none;background:var(--teal-d)}
+.btn:active{color:rgba(255,255,255,.7)}
+.btn.ghost{background:var(--surface);color:var(--teal);border:1px solid var(--teal);font-weight:700}
+.btn.ghost:hover{background:var(--pressed);color:var(--teal-d);border-color:var(--teal-d)}
+.btn.ghost:active{color:var(--teal);opacity:.7}
+.btn.sm{min-height:32px;padding:0 12px;font-size:12px}
+.btn:disabled{background:var(--border);color:var(--disabled);border-color:var(--border);cursor:default}
+.linkbtn{color:var(--teal);font-weight:700}
+.linkbtn:hover{background:var(--teal-bg)}
+/* 切り替え（Bookmark Tab）：選択＝#3895FF＋白文字／非選択＝背景 #F7F7F7＋#606060 */
+.chip{border:0;background:var(--surface);color:var(--text2);border-radius:var(--r);font-weight:700;font-size:14px;padding:6px 14px;box-shadow:var(--shadow)}
+.chip.on{background:var(--teal);color:#fff}
+/* Label：ステータス表示。背景は 04 階調の淡い色、文字は読める濃さに */
+.pill{border-radius:4px;font-size:12px;font-weight:700;padding:2px 8px;letter-spacing:0}
+.p-gray{border:0;background:var(--kraft-bg);color:var(--text2)}
+/* Form：下線型の入力欄（未入力 #BABABA 1px／入力中 #3895FF 2px）。項目名は Label 12 #606060 */
+input,select,textarea{border:0;border-bottom:1px solid var(--disabled);border-radius:0;background-color:transparent;padding:10px 2px;font-size:16px;color:var(--text)}
+input::placeholder,textarea::placeholder{color:var(--disabled)}
+input:focus,select:focus,textarea:focus{outline:0;border-bottom:2px solid var(--teal);padding-bottom:9px}
+input[type=checkbox],input[type=radio]{width:auto;padding:0;border:0}
+select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23909090' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 2px center;background-size:16px;padding-right:24px}
+.field label{font-size:12px;font-weight:400;letter-spacing:0;color:var(--text2);margin-bottom:0}
+/* 一覧の検索・絞り込みは、白いカード型の入力欄にする */
+.filters input,.filters select{background-color:var(--surface);border:0;border-radius:var(--r);box-shadow:var(--shadow);padding:8px 12px;font-size:14px;min-height:40px}
+.filters select{padding-right:30px;background-position:right 8px center}
+.filters input:focus,.filters select:focus{border:0;padding-bottom:8px;box-shadow:0 0 0 2px var(--teal)}
+/* List／表：区切り線 #EEEEEE 1px。見出しは 12 Bold #606060、本文は 14 */
+table{font-size:14px}
+th{font-size:12px;font-weight:700;letter-spacing:0;color:var(--text2)}
+tbody tr:hover{background:var(--pressed)}
+/* ハーフシート／ダイアログ：角丸20px・背景オーバーレイ 黒60%・下からスライド */
+.overlay{background:rgba(0,0,0,.6)}
+.modal{border-radius:var(--r-sheet);box-shadow:var(--high);padding:24px;animation:pp-up .2s ease-out}
+.modal h3{font-size:16px;letter-spacing:0;margin-bottom:16px}
+@keyframes pp-up{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+.sheet{border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--high)}
+/* Toast：#3895FF・白文字14px */
+.toast{background:var(--teal);border-radius:var(--r);font-size:14px;font-weight:700;box-shadow:var(--lift)}
+:root[data-theme="dark"] .toast{background:#3286FF}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .toast{background:#3286FF}}
+/* ナビゲーション：アイコンは線幅1.5の紺、選択中は青 */
+.side{border-right:0;box-shadow:var(--shadow);z-index:2}
+.navgroup{font-size:12px;letter-spacing:0;font-weight:700;color:var(--muted)}
+.navbtn{font-size:14px;color:var(--text2);border-radius:var(--r)}
+.navbtn svg{stroke:var(--ink);stroke-width:1.5}
+.navbtn:hover{background:var(--surface2);color:var(--text)}
+.navbtn.on{background:var(--teal-bg);color:var(--teal);box-shadow:none;font-weight:700}
+.navbtn.on svg{stroke:var(--teal)}
+.side-foot{border-top:1px solid var(--border)}
+.side-foot button{border:0;background:var(--surface2);border-radius:var(--r);font-size:12px;padding:8px}
+.aifab{box-shadow:var(--high)}
+/* 営業ボード：列はベース面にそのまま置き、カードだけ白＋影 */
+.board-col{background:transparent;box-shadow:none;padding:4px 2px}
+.board-col.drop{background:var(--teal-bg)}
+.goalbar i{background:#52CC97}
+.aibub.user{background:var(--teal)}
+@media(max-width:820px){
+  .main{padding:16px 16px 120px}
+  .topbar{background:var(--surface);backdrop-filter:none;border-bottom:0;box-shadow:var(--shadow)}
+  .topbar .tt{font-size:16px;letter-spacing:0}
+  .tabbar{border-top:0;box-shadow:0 -2px 6px rgba(0,0,0,.08)}
+  .tabbar button{font-size:11px}
+  .tabbar button.on{color:var(--teal);font-weight:700}
+  .tabbar svg{stroke-width:1.5}
+  .fab{box-shadow:var(--high)}
+  /* スマホではダイアログを画面下からのハーフシートにする（ログイン画面は除く） */
+  .overlay:not(#loginov){align-items:flex-end;padding:0}
+  .overlay:not(#loginov)>.modal{max-width:none;border-radius:var(--r-sheet) var(--r-sheet) 0 0;padding:20px 16px calc(24px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto;animation:pp-sheet .25s ease-out}
+  @keyframes pp-sheet{from{transform:translateY(100%)}to{transform:none}}
+}
+
+.task .t1{font-size:14px}
+.task.warn .sev{background:var(--warn-dot)}.task.crit .sev{background:var(--expense)}.task.info .sev{background:var(--teal)}
+.range{border:0;border-radius:var(--r);box-shadow:var(--shadow);background:var(--surface)}
+.range button{font-weight:700}
+.range button.on{background:var(--teal)!important;color:#fff!important}
+.allclear{font-size:14px}
+
+.modal .chip,.sheet .chip,.aipanel .chip{background:var(--surface2);box-shadow:none}
+.modal .chip.on{background:var(--teal)}
 </style>
 
 <div class="app">
@@ -468,7 +576,9 @@ let view="dash";
 const TITLES={dash:"ホーム",docs:"見積・請求・領収",money:"お金の管理",report:"レポート",forecast:"資金繰り",acct:"会計・確定申告",subsidy:"補助金",todo:"ToDo",clients:"営業・取引先",products:"商品マスタ",recurring:"固定費・サブスク",stock:"在庫",settings:"事業者設定"};
 window.go=function(v){if(v==="more"){moreSheet();return;}view=v;document.querySelectorAll(".navbtn,.tabbar button").forEach(b=>b.classList.toggle("on",b.dataset.v===v||(b.dataset.v==="more"&&!["dash","docs","money","clients"].includes(v))));const tt=$("#toptitle");if(tt)tt.textContent=TITLES[v]||"";scrollTo(0,0);render();};
 document.querySelectorAll(".navbtn,.tabbar button").forEach(b=>b.onclick=()=>go(b.dataset.v));
-function render(){({dash:vDash,docs:vDocs,money:vMoney,report:vReport,forecast:vForecast,acct:vAcct,subsidy:vSubsidy,todo:vTodo,clients:vClients,products:vProducts,recurring:vRecurring,stock:vStock,settings:vSettings})[view]();updBadges();}
+function render(){({dash:vDash,docs:vDocs,money:vMoney,report:vReport,forecast:vForecast,acct:vAcct,subsidy:vSubsidy,todo:vTodo,clients:vClients,products:vProducts,recurring:vRecurring,stock:vStock,settings:vSettings})[view]();updBadges();pricify();}
+/* PayPayスタイルの価格表示：大きな金額は「1,650円」とし、「円」を数字の半分の大きさにする（書類・表の金額は従来どおり） */
+function pricify(){document.querySelectorAll(".kpi .val").forEach(el=>{if(el.querySelector(".yen"))return;const t=el.textContent.trim();const m=t.match(/^([−\-＋+]?)¥([\d,]+)$/);if(m)el.innerHTML=`${m[1]}${m[2]}<span class="yen">円</span>`;});}
 
 /* ---------- グラフ（SVG・マウス／指で数値を表示。株価チャートの見せ方を参考に水翠用に実装） ---------- */
 const CHARTS=new Map();let chartSeq=0;
@@ -581,14 +691,14 @@ function vDash(){
   ${state.clients.length?salesStripHTML():""}
   <div class="grid kpis" style="margin-top:14px">
     <div class="kpi hero"><div class="lab">現在の残高</div><div class="val">${yen(bal)}</div><div class="sub">${deltaChip(bal,pBal,true,"先月末比")}</div><div class="sub" style="margin-top:4px">30日後の見込み ${yen(fc30.end)}<span class="dsub" style="color:inherit;opacity:.8">（${fc30.end-bal>=0?"+":"−"}${yen(Math.abs(fc30.end-bal))}）</span></div>${spark(balSeries,"#8FC9D4")}</div>
-    <div class="kpi"><div class="lab"><span class="dot" style="background:var(--income)"></span>今月の収入</div><div class="val inc">${yen(mInc)}</div><div class="sub">${deltaChip(mInc,pInc,true)}</div>${spark(incSeries,"var(--income)")}</div>
+    <div class="kpi"><div class="lab"><span class="dot" style="background:var(--income-dot)"></span>今月の収入</div><div class="val inc">${yen(mInc)}</div><div class="sub">${deltaChip(mInc,pInc,true)}</div>${spark(incSeries,"var(--income)")}</div>
     <div class="kpi"><div class="lab"><span class="dot" style="background:var(--expense)"></span>今月の支出</div><div class="val exp">${yen(mExp)}</div><div class="sub">${deltaChip(mExp,pExp,false)}</div>${spark(expSeries,"var(--expense)")}</div>
-    <div class="kpi"><div class="lab"><span class="dot" style="background:var(--warn)"></span>未回収の請求</div><div class="val" style="color:${unpaid?"var(--warn)":"var(--text)"}">${yen(unpaid)}</div><div class="sub">${overdue?`<span class="delta down">期限超過 ${yen(overdue)}</span>`:`<span class="dsub" style="margin:0">${unpaidDocs.length}件の請求書</span>`}</div></div>
+    <div class="kpi"><div class="lab"><span class="dot" style="background:var(--warn-dot)"></span>未回収の請求</div><div class="val" style="color:${unpaid?"var(--warn)":"var(--text)"}">${yen(unpaid)}</div><div class="sub">${overdue?`<span class="delta down">期限超過 ${yen(overdue)}</span>`:`<span class="dsub" style="margin:0">${unpaidDocs.length}件の請求書</span>`}</div></div>
   </div>
   <div class="grid" style="grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);margin-top:14px" id="dashgrid">
     <div class="card pad"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 class="sec" style="margin:0">お金の流れ <small>収入・支出（棒）と残高（線）</small></h2><span class="range">${[6,12].map(n=>`<button class="${dashRange===n?"on":""}" onclick="dashRange=${n};vDash()">${n}か月</button>`).join("")}</span></div>
       <div style="margin-top:10px">${chartHTML({labels:lbl,tipLabels:tipL,height:230,aria:"月別の収入・支出・残高",bars:[{name:"収入",vals:incSeries,color:"var(--income)"},{name:"支出",vals:expSeries,color:"var(--expense)"}],line:{name:"残高",vals:balSeries,color:"var(--ink)"},tipExtra:i=>`<div><span class="dot" style="background:${profitSeries[i]>=0?"var(--income)":"var(--expense)"}"></span>差引<span class="num" style="color:${profitSeries[i]>=0?"var(--income)":"var(--expense)"}">${profitSeries[i]>=0?"+":"−"}${yen(Math.abs(profitSeries[i]))}</span></div>`})}</div>
-      <div class="legend"><span><span class="dot" style="background:var(--income)"></span> 収入</span><span><span class="dot" style="background:var(--expense)"></span> 支出</span><span><span class="dot" style="background:var(--ink)"></span> 残高</span><span style="margin-left:auto;color:var(--muted)">線やグラフに触れると数字が出ます</span></div></div>
+      <div class="legend"><span><span class="dot" style="background:var(--income-dot)"></span> 収入</span><span><span class="dot" style="background:var(--expense)"></span> 支出</span><span><span class="dot" style="background:var(--ink)"></span> 残高</span><span style="margin-left:auto;color:var(--muted)">線やグラフに触れると数字が出ます</span></div></div>
     <div class="grid" style="align-content:start">
       <div class="card pad"><div class="kpi" style="border:0;padding:0"><div class="lab">今月の出荷量（BIB換算）</div><div class="val mono" style="font-family:var(--font-h)">${shipM.L.toLocaleString()} L</div><div class="sub">${deltaChip(shipM.L,shipP.L,true).replace(/（¥[\d,]+）/,`（${shipP.L.toLocaleString()} L）`)}</div><div class="sub">${shipM.box}箱・今年累計 ${shipY.L.toLocaleString()} L（${shipY.box}箱）</div></div></div>
       <div class="card" style="overflow:hidden"><div class="pad" style="padding-bottom:4px;display:flex;justify-content:space-between;align-items:baseline"><h2 class="sec" style="margin:0;font-size:15px">直近の収支</h2><button class="linkbtn" onclick="go('money')">すべて</button></div>
@@ -1474,7 +1584,7 @@ function vReport(){
   </div>
   <div class="card pad" style="margin-bottom:18px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h2 class="sec" style="margin:0">月別の推移 <small>${y}年・収入と支出（棒）、累計の利益（線）</small></h2></div>
     <div style="margin-top:10px">${chartHTML({labels:mons.map(m=>m.i+"月"),tipLabels:mons.map(m=>y+"年"+m.i+"月"),height:220,aria:"月別の収入・支出と累計利益",bars:[{name:"収入",vals:mons.map(m=>m.inc),color:"var(--income)"},{name:"支出",vals:mons.map(m=>m.exp),color:"var(--expense)"}],line:{name:"累計利益",vals:mons.reduce((a,m)=>{a.push((a.length?a[a.length-1]:0)+m.inc-m.exp);return a;},[]),color:"var(--ink)"}})}</div>
-    <div class="legend"><span><span class="dot" style="background:var(--income)"></span> 収入</span><span><span class="dot" style="background:var(--expense)"></span> 支出</span><span><span class="dot" style="background:var(--ink)"></span> 累計利益</span></div></div>
+    <div class="legend"><span><span class="dot" style="background:var(--income-dot)"></span> 収入</span><span><span class="dot" style="background:var(--expense)"></span> 支出</span><span><span class="dot" style="background:var(--ink)"></span> 累計利益</span></div></div>
   <div class="grid" style="grid-template-columns:1fr 1fr">
     <div class="card"><div class="pad" style="padding-bottom:6px"><h2 class="sec" style="margin:0">経費の勘定科目内訳</h2></div>
       <div class="pad" style="padding-top:8px">${expB.length?expB.map(e=>`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12.5px"><span>${esc(e[0])}</span><span class="num">${yen(e[1])}</span></div><div style="height:7px;background:var(--surface2);border-radius:4px;margin-top:4px;overflow:hidden"><div style="height:100%;width:${Math.round(e[1]/expMax*100)}%;background:var(--expense)"></div></div></div>`).join(""):`<div class="empty">支出データがありません</div>`}</div></div>
@@ -2549,7 +2659,7 @@ function acctFsHTML(y){
   return`
   <div class="grid kpis" style="margin-bottom:6px">
     <div class="kpi hero"><div class="lab">所得金額（${y}年・控除後）</div><div class="val">${yen(p.taxable)}</div><div class="sub">青色申告特別控除 ${yen(p.dedUse)} を差し引き後</div></div>
-    <div class="kpi"><div class="lab"><span class="dot" style="background:var(--income)"></span>売上（収入）金額</div><div class="val inc">${yen(p.sales+p.other)}</div><div class="sub">発生ベース（請求書の日付で計上）</div></div>
+    <div class="kpi"><div class="lab"><span class="dot" style="background:var(--income-dot)"></span>売上（収入）金額</div><div class="val inc">${yen(p.sales+p.other)}</div><div class="sub">発生ベース（請求書の日付で計上）</div></div>
     <div class="kpi"><div class="lab"><span class="dot" style="background:var(--expense)"></span>売上原価＋経費</div><div class="val exp">${yen(p.cogs+p.expTotal)}</div><div class="sub">原価率 ${pct(p.cogs,p.sales+p.other)}%・経費率 ${pct(p.expTotal,p.sales+p.other)}%</div></div>
     <div class="kpi"><div class="lab">控除前の所得</div><div class="val" style="color:${p.income>=0?"var(--income)":"var(--expense)"}">${yen(p.income)}</div><div class="sub">利益率 ${pct(p.income,p.sales+p.other)}%</div></div>
   </div>
