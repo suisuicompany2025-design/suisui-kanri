@@ -546,6 +546,25 @@ tbody tr:hover{background:var(--pressed)}
 .inclbtn{flex:0 0 auto;border:1px solid var(--border2);background:var(--surface);color:var(--text2);border-radius:6px;font-size:11px;font-weight:700;padding:4px 6px;cursor:pointer}
 .inclbtn.on{background:var(--teal-bg);color:var(--teal);border-color:var(--teal)}
 @media(max-width:820px){.itemrow{grid-template-columns:56px minmax(0,1fr) 68px 32px;gap:6px;padding-bottom:8px;border-bottom:1px solid var(--border)}.itemrow>input:first-child{grid-column:1/-1}} /* スマホは品目を1行目に全幅で、数量・単価・税率を2行目に */
+
+/* 商品マスタ */
+.pm-group{margin-bottom:16px}
+.pm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.pm-head h2{font-size:16px;margin:0;line-height:1.4}
+.pm-meta{font-size:12px;color:var(--muted);margin-top:2px}
+.pm-sec{font-size:12px;font-weight:700;color:var(--text2);margin:16px 0 8px}
+.pm-rows{display:grid;gap:8px}
+.pm-row{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;text-align:left;background:var(--surface2);border:0;border-radius:var(--r);padding:12px 14px;cursor:pointer;color:var(--text);font:inherit}
+.pm-row:hover,.pm-tile:hover{background:var(--pressed)}
+.pm-row:focus-visible,.pm-tile:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.pm-rl{display:grid;min-width:0}.pm-rl b{font-size:14px}.pm-rl small{font-size:12px;color:var(--muted)}
+.pm-rp{display:grid;justify-items:end;flex:0 0 auto}
+.pm-yen{font-family:var(--font-m);font-weight:700;font-size:16px;white-space:nowrap;color:var(--text)}.pm-yen.big{font-size:22px}.pm-yen small{font-size:.55em;margin-left:1px;font-weight:700}
+.pm-ex{font-size:11px;color:var(--muted);white-space:nowrap}
+.pm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:8px}
+.pm-tile{display:grid;gap:2px;text-align:left;background:var(--surface2);border:0;border-radius:var(--r);padding:10px 12px;cursor:pointer;color:var(--text);font:inherit;min-width:0}
+.pm-tl{font-size:12px;color:var(--text2);font-weight:700;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
+@media(max-width:820px){.pm-grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}.pm-yen.big{font-size:20px}}
 </style>
 
 <div class="app">
@@ -1706,20 +1725,39 @@ function vSettings(){const s=state.settings;
 window.saveSettings=function(){Object.assign(state.settings,{name:$("#s_name").value,rep:$("#s_rep").value,addr:$("#s_addr").value,tel:$("#s_tel").value,mail:$("#s_mail").value,invoiceNo:$("#s_inv").value,bank:$("#s_bank").value,openDate:$("#s_od").value||"",openBank:Math.max(0,Math.round(+$("#s_ob").value||0)),openCash:Math.max(0,Math.round(+$("#s_oc").value||0)),deduction:+$("#s_ded").value||0});save();(async()=>{try{const ck=$("#s_ckey");if(ck&&ck.value.trim()!==CKEY())await saveClaudeKeyShared(ck.value.trim());const m=$("#s_members");if(m&&fs&&cloudCfg){const list=[...new Set(m.value.split(/[\s,]+/).map(x=>x.trim().toLowerCase()).filter(x=>x.includes("@")))];if(currentUser&&!list.includes(currentUser.email))list.unshift(currentUser.email);if(!list.includes(ROOT_ADMIN))list.unshift(ROOT_ADMIN);await fs.doc("app/config").set({allowed:list},{merge:true});cloudCfg.allowed=list;}}catch(e){toast("共有設定の保存に失敗しました："+((e&&e.code)||""));}})();toast("保存しました");};
 
 /* ---------- PRODUCTS (商品マスタ) ---------- */
+/* 商品マスタ：同じ商品（カッコの前が同じ名前）をまとめ、小売は大きく、地域別の卸・送料はタイルで並べる。タップで編集 */
+const pmTaxIn=p=>p.incl?+p.price||0:(+p.price||0)+Math.floor((+p.price||0)*(+p.tax||0)/100);
+const pmTaxEx=p=>p.incl?(+p.price||0)-Math.floor((+p.price||0)*(+p.tax||0)/(100+(+p.tax||0))):+p.price||0;
+function pmParts(p){const m=String(p.name||"").match(/[（(]([^）)]*)[）)]/),v=m?m[1]:"",t=v?v.split("・"):[];return {base:baseName(p.name)||p.name,v,kind:t[0]||"",rest:t.slice(1)};}
+const pmYen=(n,big)=>`<span class="pm-yen${big?" big":""}">${(+n||0).toLocaleString()}<small>円</small></span>`;
+function pmTile(p,label){return `<button type="button" class="pm-tile" onclick="editProduct('${p.id}')" aria-label="${esc(p.name)}を編集"><span class="pm-tl">${esc(label)}</span>${pmYen(pmTaxIn(p))}<span class="pm-ex">税抜 ${pmTaxEx(p).toLocaleString()}円</span></button>`;}
+function pmRow(p,label,note){return `<button type="button" class="pm-row" onclick="editProduct('${p.id}')" aria-label="${esc(p.name)}を編集"><span class="pm-rl"><b>${esc(label)}</b>${note?`<small>${esc(note)}</small>`:""}</span><span class="pm-rp">${pmYen(pmTaxIn(p),true)}<span class="pm-ex">税抜 ${pmTaxEx(p).toLocaleString()}円</span></span></button>`;}
+const pmCommon=arr=>arr.length&&arr.every(x=>x===arr[0])?arr[0]:"";
 function vProducts(){
+  const groups=[],idx={};
+  state.products.forEach(p=>{const b=pmParts(p).base;if(!(b in idx)){idx[b]=groups.length;groups.push({base:b,items:[]});}groups[idx[b]].items.push(p);});
+  groups.sort((x,y)=>(x.items.every(i=>i.svc)?1:0)-(y.items.every(i=>i.svc)?1:0)); /* 送料などのサービスは最後 */
+  const body=groups.map(g=>{
+    const svc=g.items.every(i=>i.svc),unit=pmCommon(g.items.map(i=>i.unit||""))||"",tax=pmCommon(g.items.map(i=>String(+i.tax||0))),cost=(g.items.find(i=>i.cost!=null)||{}).cost;
+    const parts=g.items.map(i=>({p:i,...pmParts(i)}));
+    let html="";
+    if(svc){/* 送料：地域ごとのタイル */
+      const note=pmCommon(parts.map(x=>x.rest.join("・")));
+      html=`${note?`<div class="pm-sec">${esc(note)}</div>`:""}<div class="pm-grid">${parts.map(x=>pmTile(x.p,x.kind||x.v||"標準")).join("")}</div>`;
+    }else{
+      const whole=parts.filter(x=>x.kind==="卸"&&x.rest.length),others=parts.filter(x=>!(x.kind==="卸"&&x.rest.length));
+      if(others.length)html+=`<div class="pm-rows">${others.map(x=>pmRow(x.p,x.kind||"標準価格",x.rest.join("・"))).join("")}</div>`;
+      if(whole.length){const note=pmCommon(whole.map(x=>x.rest.slice(1).join("・")));
+        html+=whole.length>=3?`<div class="pm-sec">卸・地域別${note?`（${esc(note)}）`:""}</div><div class="pm-grid">${whole.map(x=>pmTile(x.p,x.rest[0])).join("")}</div>`
+          :`<div class="pm-rows" style="margin-top:8px">${whole.map(x=>pmRow(x.p,"卸",x.rest.join("・"))).join("")}</div>`;}
+    }
+    return `<section class="card pad pm-group" aria-label="${esc(g.base)}">
+      <div class="pm-head"><div style="min-width:0"><h2>${esc(g.base)}</h2><div class="pm-meta">${g.items.length}件${tax?`・税率 ${tax==="0"?"非課税":tax+"%"}`:""}${unit?`・単位 ${esc(unit)}`:""}${cost!=null?`・仕入 ${(+cost).toLocaleString()}円`:""}${svc?"・在庫の対象外":""}</div></div>${svc?`<span class="pill p-gray">送料</span>`:`<span class="pill p-teal">商品</span>`}</div>
+      ${html}</section>`;}).join("");
   $("#main").innerHTML=`
-  <div class="head"><div><h1>商品マスタ</h1><p>よく使う商品を登録すると、見積・請求書の明細にワンタップで追加できます。${state.productsBackup?`価格表は ${esc(state.productsVer||"")} 版です。`:""}</p></div>
+  <div class="head"><div><h1>商品マスタ</h1><p>見積・請求書の明細にワンタップで追加できる商品です。金額は税込で表示しています。タップすると編集できます。${state.productsVer?`（価格表 ${esc(state.productsVer)} 版）`:""}</p></div>
     <button class="btn" onclick="editProduct()">＋ 商品を追加</button></div>
-  <div class="card tablewrap"><table>
-    <thead><tr><th>商品名</th><th class="num">標準単価</th><th>税率</th><th>単位</th><th></th></tr></thead>
-    <tbody>${state.products.length?state.products.map(p=>`<tr>
-      <td><b>${esc(p.name)}</b></td>
-      <td class="num" style="white-space:nowrap">${yen(p.price)}<div class="sc-meta">${p.incl?`税込（税抜 ${yen(p.price-Math.floor(p.price*(+p.tax||0)/(100+(+p.tax||0))))}）`:`税抜（税込 ${yen(p.price+Math.floor(p.price*(+p.tax||0)/100))}）`}</div></td>
-      <td><span class="pill ${p.tax==8?"p-teal":"p-gray"}">${p.tax}%</span></td>
-      <td>${esc(p.unit||"")}</td>
-      <td class="num" style="white-space:nowrap"><button class="linkbtn" onclick="editProduct('${p.id}')">編集</button><button class="linkbtn" style="color:var(--expense)" onclick="delProduct('${p.id}')">削除</button></td>
-    </tr>`).join(""):`<tr><td colspan="5" class="empty">商品がありません。「＋ 商品を追加」から登録してください。</td></tr>`}</tbody>
-  </table></div>`;
+  ${state.products.length?body:`<div class="card pad empty">商品がありません。「＋ 商品を追加」から登録してください。</div>`}`;
 }
 function delProduct(id){softDelete("products",id,"商品");}
 window.editProduct=function(id){
@@ -1733,6 +1771,8 @@ window.editProduct=function(id){
       <div class="field"><label>単位</label><input id="pm_unit" value="${p?esc(p.unit):"箱"}" placeholder="箱／本 等"></div>
       <div class="field"><label>仕入単価（税込・棚卸の評価に使用）</label><input type="number" id="pm_cost" value="${p&&p.cost!=null?p.cost:""}" placeholder="例：1500"></div>
     </div>
+    <p class="recnote" style="margin-top:0">商品名は「基本の名前（種類・地域・条件）」の形にすると、商品マスタで同じ商品としてまとめて表示されます。例：大分由布の天然炭酸水 BIB20L（卸・関東・送料込）</p>
+    ${p?`<button type="button" class="linkbtn" style="color:var(--expense);margin-left:-6px" onclick="closeModal();delProduct('${p.id}')">この商品を削除</button>`:""}
   `,()=>{
     const name=$("#pm_name").value.trim();if(!name){toast("商品名を入力してください");return false;}
     const o={id:p?p.id:uid(),name,price:+$("#pm_price").value||0,tax:+$("#pm_tax").value,unit:$("#pm_unit").value.trim(),cost:$("#pm_cost").value===""?null:Math.max(0,Math.round(+$("#pm_cost").value||0)),incl:$("#pm_incl").value==="1"};
