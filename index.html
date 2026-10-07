@@ -565,6 +565,25 @@ tbody tr:hover{background:var(--pressed)}
 .pm-tile{display:grid;gap:2px;text-align:left;background:var(--surface2);border:0;border-radius:var(--r);padding:10px 12px;cursor:pointer;color:var(--text);font:inherit;min-width:0}
 .pm-tl{font-size:12px;color:var(--text2);font-weight:700;line-height:1.35;word-break:keep-all;overflow-wrap:anywhere}
 @media(max-width:820px){.pm-grid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}.pm-yen.big{font-size:20px}}
+
+/* 商品マスタのタブ */
+.pm-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin:0 -2px 6px;scrollbar-width:none}
+.pm-tabs::-webkit-scrollbar{display:none}
+.pm-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;border:0;background:var(--surface);color:var(--text2);border-radius:var(--r);font:inherit;font-size:14px;font-weight:700;padding:8px 14px;box-shadow:var(--shadow);cursor:pointer;white-space:nowrap}
+.pm-tab.on{background:var(--teal);color:#fff}
+.pm-tab:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.pm-cnt{font-size:11px;font-weight:700;background:rgba(0,0,0,.08);border-radius:10px;padding:1px 7px}
+.pm-tab.on .pm-cnt{background:rgba(255,255,255,.25)}
+.pm-block+.pm-block{margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+.pm-block>.pm-sec:first-child{margin-top:0}
+.pm-sub{font-size:12px;font-weight:700;color:var(--muted);margin:12px 0 8px}
+.pm-ship{font-size:12px;color:var(--text2)}.pm-ship .pm-yen{font-size:15px}
+
+.pm-tab{flex-direction:column;align-items:flex-start;gap:0;line-height:1.35;text-align:left}
+.pm-tn{font-size:14px;font-weight:700}.pm-ts{font-size:11px;font-weight:700;opacity:.75}
+.pm-tabs.few{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);overflow:visible}
+.pm-tabs.few .pm-tab{white-space:normal;min-width:0}
+@media(max-width:820px){.pm-tab{padding:8px 10px}.pm-tn{font-size:13px;letter-spacing:-.01em}}
 </style>
 
 <div class="app">
@@ -1733,31 +1752,46 @@ const pmYen=(n,big)=>`<span class="pm-yen${big?" big":""}">${(+n||0).toLocaleStr
 function pmTile(p,label){return `<button type="button" class="pm-tile" onclick="editProduct('${p.id}')" aria-label="${esc(p.name)}を編集"><span class="pm-tl">${esc(label)}</span>${pmYen(pmTaxIn(p))}<span class="pm-ex">税抜 ${pmTaxEx(p).toLocaleString()}円</span></button>`;}
 function pmRow(p,label,note){return `<button type="button" class="pm-row" onclick="editProduct('${p.id}')" aria-label="${esc(p.name)}を編集"><span class="pm-rl"><b>${esc(label)}</b>${note?`<small>${esc(note)}</small>`:""}</span><span class="pm-rp">${pmYen(pmTaxIn(p),true)}<span class="pm-ex">税抜 ${pmTaxEx(p).toLocaleString()}円</span></span></button>`;}
 const pmCommon=arr=>arr.length&&arr.every(x=>x===arr[0])?arr[0]:"";
+/* 送料などのサービスは、名前に出てくる商品（例：「炭酸水の小売に加算」→ 炭酸水）のタブに入れ、その小売のすぐ下に並べる */
+function pmShipTile(p,label,retail){const ship=pmTaxIn(p);return `<button type="button" class="pm-tile" onclick="editProduct('${p.id}')" aria-label="${esc(p.name)}を編集"><span class="pm-tl">${esc(label)}</span>${pmYen(ship)}${retail!=null?`<span class="pm-ex">合計 ${(retail+ship).toLocaleString()}円</span>`:""}</button>`;}
+function pmGroups(){
+  const groups=[],idx={},loose=[];
+  state.products.filter(p=>!p.svc).forEach(p=>{const b=pmParts(p).base;if(!(b in idx)){idx[b]=groups.length;groups.push({base:b,items:[],ship:[]});}groups[idx[b]].items.push(p);});
+  state.products.filter(p=>p.svc).forEach(p=>{const key=(pmParts(p).rest.join("・").match(/([^・／]+?)の/)||[])[1];const g=key&&groups.find(x=>x.base.includes(key));if(g)g.ship.push(p);else loose.push(p);});
+  if(loose.length){const sidx={};loose.forEach(p=>{const b=pmParts(p).base;if(!(b in sidx)){sidx[b]=groups.length;groups.push({base:b,items:[],ship:[],svc:true});}groups[sidx[b]].ship.push(p);});}
+  groups.forEach(g=>{g.key="g"+[...g.base].reduce((h,c)=>(h*31+c.charCodeAt(0))>>>0,7).toString(36);});
+  return groups;}
+let pmTab=(()=>{try{return localStorage.getItem("suisui_pm_tab")||"";}catch(e){return "";}})();
+window.pmSelect=function(k){pmTab=k;try{localStorage.setItem("suisui_pm_tab",k);}catch(e){}vProducts();const t=document.querySelector(".pm-tab.on");if(t)t.scrollIntoView({inline:"nearest",block:"nearest"});};
+function pmBody(g){
+  const all=g.items.concat(g.ship),unit=pmCommon(all.map(i=>i.unit||""))||"",tax=pmCommon(g.items.map(i=>String(+i.tax||0))),cost=(g.items.find(i=>i.cost!=null)||{}).cost;
+  const parts=g.items.map(i=>({p:i,...pmParts(i)})),ships=g.ship.map(i=>({p:i,...pmParts(i)}));
+  const retail=parts.filter(x=>x.kind==="小売"),whole=parts.filter(x=>x.kind==="卸"),other=parts.filter(x=>x.kind!=="小売"&&x.kind!=="卸");
+  const shipNote=pmCommon(ships.map(x=>x.rest.join("・")));
+  let html="";
+  /* 小売 → その送料 → 卸 → その他、の順。関係する情報を上下に並べる */
+  if(retail.length){html+=`<div class="pm-block"><div class="pm-sec">小売（BtoC）</div><div class="pm-rows">${retail.map(x=>pmRow(x.p,"小売",x.rest.join("・"))).join("")}</div>`;
+    if(ships.length)html+=`<div class="pm-sub">送料（地域別・お客さんに実費で請求）</div><div class="pm-grid">${ships.map(x=>pmShipTile(x.p,x.kind||x.v||"標準",retail.length===1?pmTaxIn(retail[0].p):null)).join("")}</div>`;
+    html+=`</div>`;}
+  else if(ships.length)html+=`<div class="pm-block">${shipNote?`<div class="pm-sec">${esc(shipNote)}</div>`:""}<div class="pm-grid">${ships.map(x=>pmTile(x.p,x.kind||x.v||"標準")).join("")}</div></div>`;
+  if(whole.length){const reg=whole.filter(x=>x.rest.length),plain=whole.filter(x=>!x.rest.length),note=pmCommon(reg.map(x=>x.rest.slice(1).join("・")));
+    html+=`<div class="pm-block"><div class="pm-sec">卸（BtoB）${reg.length>=3?`・地域別${note?`（${esc(note)}）`:""}`:""}</div>`;
+    if(plain.length)html+=`<div class="pm-rows">${plain.map(x=>pmRow(x.p,"卸","")).join("")}</div>`;
+    if(reg.length)html+=reg.length>=3?`<div class="pm-grid"${plain.length?' style="margin-top:8px"':""}>${reg.map(x=>pmTile(x.p,x.rest[0])).join("")}</div>`:`<div class="pm-rows">${reg.map(x=>pmRow(x.p,"卸",x.rest.join("・"))).join("")}</div>`;
+    html+=`</div>`;}
+  if(other.length)html+=`<div class="pm-block">${retail.length||whole.length?`<div class="pm-sec">そのほか</div>`:""}<div class="pm-rows">${other.map(x=>pmRow(x.p,x.kind||"標準価格",x.rest.join("・"))).join("")}</div></div>`;
+  return `<section class="card pad pm-group" role="tabpanel" aria-label="${esc(g.base)}">
+    <div class="pm-head"><div style="min-width:0"><h2>${esc(g.base)}</h2><div class="pm-meta">${all.length}件${tax?`・税率 ${tax==="0"?"非課税":tax+"%"}`:""}${unit?`・単位 ${esc(unit)}`:""}${cost!=null?`・仕入 ${(+cost).toLocaleString()}円`:""}${g.svc?"・在庫の対象外":""}</div></div></div>
+    ${html}</section>`;}
 function vProducts(){
-  const groups=[],idx={};
-  state.products.forEach(p=>{const b=pmParts(p).base;if(!(b in idx)){idx[b]=groups.length;groups.push({base:b,items:[]});}groups[idx[b]].items.push(p);});
-  groups.sort((x,y)=>(x.items.every(i=>i.svc)?1:0)-(y.items.every(i=>i.svc)?1:0)); /* 送料などのサービスは最後 */
-  const body=groups.map(g=>{
-    const svc=g.items.every(i=>i.svc),unit=pmCommon(g.items.map(i=>i.unit||""))||"",tax=pmCommon(g.items.map(i=>String(+i.tax||0))),cost=(g.items.find(i=>i.cost!=null)||{}).cost;
-    const parts=g.items.map(i=>({p:i,...pmParts(i)}));
-    let html="";
-    if(svc){/* 送料：地域ごとのタイル */
-      const note=pmCommon(parts.map(x=>x.rest.join("・")));
-      html=`${note?`<div class="pm-sec">${esc(note)}</div>`:""}<div class="pm-grid">${parts.map(x=>pmTile(x.p,x.kind||x.v||"標準")).join("")}</div>`;
-    }else{
-      const whole=parts.filter(x=>x.kind==="卸"&&x.rest.length),others=parts.filter(x=>!(x.kind==="卸"&&x.rest.length));
-      if(others.length)html+=`<div class="pm-rows">${others.map(x=>pmRow(x.p,x.kind||"標準価格",x.rest.join("・"))).join("")}</div>`;
-      if(whole.length){const note=pmCommon(whole.map(x=>x.rest.slice(1).join("・")));
-        html+=whole.length>=3?`<div class="pm-sec">卸・地域別${note?`（${esc(note)}）`:""}</div><div class="pm-grid">${whole.map(x=>pmTile(x.p,x.rest[0])).join("")}</div>`
-          :`<div class="pm-rows" style="margin-top:8px">${whole.map(x=>pmRow(x.p,"卸",x.rest.join("・"))).join("")}</div>`;}
-    }
-    return `<section class="card pad pm-group" aria-label="${esc(g.base)}">
-      <div class="pm-head"><div style="min-width:0"><h2>${esc(g.base)}</h2><div class="pm-meta">${g.items.length}件${tax?`・税率 ${tax==="0"?"非課税":tax+"%"}`:""}${unit?`・単位 ${esc(unit)}`:""}${cost!=null?`・仕入 ${(+cost).toLocaleString()}円`:""}${svc?"・在庫の対象外":""}</div></div>${svc?`<span class="pill p-gray">送料</span>`:`<span class="pill p-teal">商品</span>`}</div>
-      ${html}</section>`;}).join("");
+  const groups=pmGroups();
+  if(!groups.some(g=>g.key===pmTab))pmTab=groups.length?groups[0].key:"";
+  const cur=groups.find(g=>g.key===pmTab);
   $("#main").innerHTML=`
   <div class="head"><div><h1>商品マスタ</h1><p>見積・請求書の明細にワンタップで追加できる商品です。金額は税込で表示しています。タップすると編集できます。${state.productsVer?`（価格表 ${esc(state.productsVer)} 版）`:""}</p></div>
     <button class="btn" onclick="editProduct()">＋ 商品を追加</button></div>
-  ${state.products.length?body:`<div class="card pad empty">商品がありません。「＋ 商品を追加」から登録してください。</div>`}`;
+  ${groups.length?`<div class="pm-tabs${groups.length<=3?" few":""}" role="tablist" aria-label="商品">${groups.map(g=>`<button type="button" role="tab" class="pm-tab${g.key===pmTab?" on":""}" aria-selected="${g.key===pmTab}" onclick="pmSelect('${g.key}')"><span class="pm-tn">${esc(g.base.replace(/\s*BIB\s*\d+(?:\.\d+)?L$/i,""))}</span><span class="pm-ts">${esc((g.base.match(/BIB\s*\d+(?:\.\d+)?L$/i)||[""])[0])}${(g.base.match(/BIB\s*\d+(?:\.\d+)?L$/i)?"・":"")}${g.items.length+g.ship.length}件</span></button>`).join("")}</div>${cur?pmBody(cur):""}`
+    :`<div class="card pad empty">商品がありません。「＋ 商品を追加」から登録してください。</div>`}`;
 }
 function delProduct(id){softDelete("products",id,"商品");}
 window.editProduct=function(id){
