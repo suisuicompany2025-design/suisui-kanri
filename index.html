@@ -2026,7 +2026,7 @@ addEventListener("keydown",e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()===
 /* ---------- 予算（月の上限） ---------- */
 /* ---------- 売上目標（毎月の目標＋月ごとの上書き） ----------
    売上＝収入のうち「雑収入」以外（売上高・BtoB卸売上・EC定期売上）。元入金・事業主借は sumPL の時点で除外される */
-const PHASE1_SALES=297000; /* 事業計画の Phase1 月商目標（20店×2商品・自家配送） */
+const PHASE1_SALES=294000; /* 事業計画の Phase1 月商目標（20店×(雄町3箱×¥2,400＋炭酸水2箱×¥3,750)・2026-10-07 確定価格・税込） */
 const isSale=x=>x.type==="収入"&&(x.category||"")!=="雑収入";
 const salesOf=m=>sumPL(x=>isSale(x)&&ym(x.date)===m);
 function goalOf(m){const g=state.goals||{},v=g.months&&g.months[m];if(v!=null&&v!=="")return +v||0;return g.since&&m<g.since?0:(+g.monthly||0);}
