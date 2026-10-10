@@ -586,6 +586,8 @@ tbody tr:hover{background:var(--pressed)}
 @media(max-width:820px){.pm-tab{padding:8px 10px}.pm-tn{font-size:13px;letter-spacing:-.01em}}
 
 .doctable .pill+button.pill,.doctable button.pill{font:inherit;font-size:12px;font-weight:700}
+.toast button{white-space:nowrap;flex:0 0 auto}
+@media(max-width:820px){.toast{left:16px;right:16px;transform:none;max-width:none;justify-content:space-between}} /* left:50%だと幅が画面の半分に縮み、文字とボタンが縦に潰れていた */
 </style>
 
 <div class="app">
@@ -1625,8 +1627,8 @@ window.editDoc=function(id,type,dir0){
   `,()=>{
     const items=readItems();if(!items.length){toast("明細を1件以上入力してください");return false;}
     const o={id:d?d.id:uid(),type,number:d?d.number:nextNumber(type,$("#d_dir").value),clientId:$("#d_client").value,issueDate:$("#d_issue").value,dueDate:$("#d_due").value,items,note:$("#d_note").value.trim(),status:$("#d_status").value,dir:$("#d_dir").value,subject:$("#d_subj").value.trim()};
-    const isNew=!d;if(d){const oldTot=calc(d).total;logEdit(d,{issueDate:[d.issueDate,o.issueDate],total:[oldTot,calc(o).total],status:[d.status,o.status],clientId:[clientName(d.clientId),clientName(o.clientId)]});Object.assign(d,o);if(d.type==="領収書")state.txns.filter(x=>x.docId===d.id).forEach(x=>{const nt=calc(d).total;logEdit(x,{date:[x.date,d.issueDate],amount:[x.amount,nt]});x.date=d.issueDate;x.amount=nt;if(x.detail)x.detail.total=nt;});}else state.docs.push(o);docSide=o.dir||"発行";save();closeModal();render();
-    if(isNew&&o.dir!=="受取"&&(type==="請求書"||type==="領収書")&&docHasProduct(o))setTimeout(()=>toast("商品が入っています。発送元に産地直送を手配しますか？",{label:"手配する",fn:()=>orderFromDoc(o.id)}),type==="領収書"?2600:300);
+    const isNew=!d;if(d){const oldTot=calc(d).total;logEdit(d,{issueDate:[d.issueDate,o.issueDate],total:[oldTot,calc(o).total],status:[d.status,o.status],clientId:[clientName(d.clientId),clientName(o.clientId)]});Object.assign(d,o);if(d.type==="領収書")state.txns.filter(x=>x.docId===d.id).forEach(x=>{const nt=calc(d).total;logEdit(x,{date:[x.date,d.issueDate],amount:[x.amount,nt]});x.date=d.issueDate;x.amount=nt;if(x.detail)x.detail.total=nt;});}else{state.docs.push(o);if(window.__billOrders){(state.orders||[]).filter(x=>window.__billOrders.includes(x.id)).forEach(x=>{x.linkDocId=o.id;});}}window.__billOrders=null;docSide=o.dir||"発行";save();closeModal();render();
+    if(isNew&&o.dir!=="受取"&&(type==="請求書"||type==="領収書")&&docHasProduct(o)&&!orderLinked(o.id))setTimeout(()=>toast("商品が入っています。発送元に産地直送を手配しますか？",{label:"手配する",fn:()=>orderFromDoc(o.id)}),type==="領収書"?2600:300);
     if(isNew&&type==="領収書"&&o.dir==="発行"){const cc=calc(o);confirmModal(`領収書を作成しました。収入として ${yen(cc.total)} を記録しますか？`,()=>{state.txns.push({id:uid(),type:"収入",date:o.issueDate||today(),category:"売上高",docId:o.id,amount:cc.total,memo:`${clientName(o.clientId)} ${o.number}`});save();toast("収入に記録しました");},"記録する",false);}
     if(isNew&&type==="領収書"&&o.dir==="受取"){const cc=calc(o);confirmModal(`支払った領収書を記録しました。支出として ${yen(cc.total)} を記録しますか？`,()=>{state.txns.push({id:uid(),type:"支出",date:o.issueDate||today(),category:guessCat(clientName(o.clientId)+" "+o.items.map(i=>i.name).join(" "),"支出")||"消耗品費",amount:cc.total,memo:`${clientName(o.clientId)} ${o.number}`,docId:o.id});save();render();toast("支出に記録しました");},"記録する",false);}
   });
@@ -2096,7 +2098,7 @@ function softDelete(key,id,label){const arr=state[key]||[];const i=arr.findIndex
 /* ---------- 検索・コマンド（⌘K） ---------- */
 function palItems(q){
   q=(q||"").trim().toLowerCase();
-  const acts=[["収支を記録","お金","quick()"],["売上目標を設定","目標","editGoals()"],["写真で書類を登録","登録","docRegister('camera')"],["PDF・画像で書類を登録","登録","docRegister('file')"],["請求書を作成","書類","editDoc(null,'請求書')"],["見積書を作成","書類","editDoc(null,'見積書')"],["領収書を作成","書類","editDoc(null,'領収書')"],["書類記録：支払う請求書","書類","editDoc(null,'請求書','受取')"],["書類記録：支払った領収書","書類","editDoc(null,'領収書','受取')"],["書類一覧を見る","書類","go('docs')"],["書類を記録（写真・PDF・手入力）","書類","goRecord()"],["営業先を追加","営業","editClient()"],["営業先リスト（Excel・CSV）を取り込む","営業","importClients()"],["営業・取引先を見る","営業","go('clients')"],["スイ（AI）に聞く・記録を頼む","AI","aiToggle()"],["サブスク・固定費を追加","台帳","editRecurring()"],["固定費・サブスクを見る","台帳","go('recurring')"],["予算を設定","分析","editBudgets()"],["産地直送を手配","直送","editOrder()"],["資材を追加","在庫","stockTab='資材';go('stock');editMaterial()"],["資材（段ボール等）の数を見る","資材","stockTab='資材';go('stock')"],["削除した記録を見る","データ","openTrash()"],["発注・入荷予定を見る","在庫","stockTab='発注';go('stock')"],["通帳を撮って記録","お金","pickPassbook('camera')"],["通帳・明細の写真から記録","お金","pickPassbook('file')"],["銀行・カードの明細を取り込む","お金","importCSV()"],["撮った写真から記録（複数可）","登録","docRegister('library')"],["補助金の台帳","分析","go('subsidy')"],["会計・確定申告（決算書）","分析","acctTab='fs';go('acct')"],["仕訳帳を見る","分析","acctTab='journal';go('acct')"],["総勘定元帳を見る","分析","acctTab='ledger';go('acct')"],["申告前チェック","分析","acctTab='check';go('acct')"],["補助金の設定","分析","editSubsidy()"],["ToDoを見る","移動","go('todo')"],
+  const acts=[["収支を記録","お金","quick()"],["売上目標を設定","目標","editGoals()"],["写真で書類を登録","登録","docRegister('camera')"],["PDF・画像で書類を登録","登録","docRegister('file')"],["請求書を作成","書類","editDoc(null,'請求書')"],["見積書を作成","書類","editDoc(null,'見積書')"],["領収書を作成","書類","editDoc(null,'領収書')"],["書類記録：支払う請求書","書類","editDoc(null,'請求書','受取')"],["書類記録：支払った領収書","書類","editDoc(null,'領収書','受取')"],["書類一覧を見る","書類","go('docs')"],["書類を記録（写真・PDF・手入力）","書類","goRecord()"],["営業先を追加","営業","editClient()"],["営業先リスト（Excel・CSV）を取り込む","営業","importClients()"],["営業・取引先を見る","営業","go('clients')"],["スイ（AI）に聞く・記録を頼む","AI","aiToggle()"],["サブスク・固定費を追加","台帳","editRecurring()"],["固定費・サブスクを見る","台帳","go('recurring')"],["予算を設定","分析","editBudgets()"],["産地直送を手配","直送","editOrder()"],["Shopifyの注文を取り込む","直送","importShopify()"],["発送元への支払い・月まとめ請求","直送","stockTab='発注';go('stock')"],["資材を追加","在庫","stockTab='資材';go('stock');editMaterial()"],["資材（段ボール等）の数を見る","資材","stockTab='資材';go('stock')"],["削除した記録を見る","データ","openTrash()"],["発注・入荷予定を見る","在庫","stockTab='発注';go('stock')"],["通帳を撮って記録","お金","pickPassbook('camera')"],["通帳・明細の写真から記録","お金","pickPassbook('file')"],["銀行・カードの明細を取り込む","お金","importCSV()"],["撮った写真から記録（複数可）","登録","docRegister('library')"],["補助金の台帳","分析","go('subsidy')"],["会計・確定申告（決算書）","分析","acctTab='fs';go('acct')"],["仕訳帳を見る","分析","acctTab='journal';go('acct')"],["総勘定元帳を見る","分析","acctTab='ledger';go('acct')"],["申告前チェック","分析","acctTab='check';go('acct')"],["補助金の設定","分析","editSubsidy()"],["ToDoを見る","移動","go('todo')"],
     ...Object.entries(TITLES).map(([k,v])=>[v+"を開く","移動",`go('${k}')`])];
   let out=acts.filter(a=>!q||a[0].toLowerCase().includes(q)).map(a=>({t:a[0],s:a[1],fn:a[2]}));
   if(q){
@@ -2399,7 +2401,7 @@ function vOrders(){
     <div class="kpi"><div class="lab">今月の仕入（直送済）</div><div class="val">${yen(os.filter(o=>o.kind==="商品"&&o.doneDate&&ym(o.doneDate)===m).reduce((a,o)=>a+(+o.unitCost||0)*(+o.qty||0),0))}</div><div class="sub">単価×箱数の見込み。支払いは「お金の管理」で記録</div></div>
     ${cb?`<div class="kpi"><div class="lab">${esc(cb.name)}</div><div class="val">${cb?stockOf(cb.name)+esc(cb.unit):"—"}</div><div class="sub">今月の手配で ${cbUsed}${esc(cb.unit)} 使用</div></div>`:""}
   </div>
-  ${payHTML()}
+  ${billHTML()}${payHTML()}
   <h2 class="sec">直送の手配一覧</h2>
   <div class="card tablewrap"><table class="mtable"><thead><tr><th>手配番号</th><th>発送元</th><th>品目・数量</th><th>届け先</th><th>発送予定</th><th>状態</th><th></th></tr></thead><tbody>
   ${os.length?os.map(o=>{const st=orderState(o),doc=o.linkDocId?state.docs.find(x=>x.id===o.linkDocId):null;return`<tr><td class="mono">${esc(o.no)}<div style="font-size:11.5px;color:var(--muted);font-family:var(--font-b)">${md(o.date)} 手配</div></td><td style="white-space:nowrap">${esc(supShort(o.supplier))}</td><td><b>${esc(o.item)}</b> ${o.qty}${esc(o.unit||"")}${o.sample?` <span class="pill p-teal">サンプル</span>`:""}${o.extId?` <span class="pill p-gray">Shopify</span>`:""}</td>
@@ -2486,6 +2488,22 @@ window.payRecord=function(i){const x=payGroups()[i];if(!x)return;const last=x.mo
     x.os.forEach(o=>{o.txId=made[0].id;});save();closeModal();render();
     toast(`${x.supplier.replace(/（.*）/,"")}への支払い ${yen(buy+ad)} を記録しました`,{label:"元に戻す",fn:()=>{const ids=new Set(made.map(t=>t.id));state.txns=state.txns.filter(t=>!ids.has(t.id));x.os.forEach(o=>{delete o.txId;});save();render();}});});};
 
+/* ---------- 月まとめ請求：請求書がまだの直送（取引先あり・サンプル除く）を取引先ごとに ---------- */
+function billGroups(){const g={};(state.orders||[]).filter(o=>o.kind==="商品"&&!o.sample&&o.clientId&&!o.linkDocId&&!o.extId).forEach(o=>{(g[o.clientId]=g[o.clientId]||{clientId:o.clientId,os:[]}).os.push(o);});
+  return Object.values(g).map(x=>({...x,box:x.os.reduce((a,o)=>a+(+o.qty||0),0)}));}
+/* 取引先の地域に合う卸の商品（炭酸水は地域別、雄町は1つ） */
+function wholesaleFor(item,c){const zone=zoneOfClient(c),cand=state.products.filter(x=>!x.svc&&baseName(x.name)===item&&pmParts(x).kind==="卸");return cand.find(x=>pmParts(x).rest[0]===zone)||cand.find(x=>!pmParts(x).rest.length)||cand[0]||state.products.find(x=>!x.svc&&baseName(x.name)===item)||null;}
+function billHTML(){const gs=billGroups();if(!gs.length)return"";
+  return `<h2 class="sec">請求書がまだの直送 <small>取引先ごとにまとめて請求書を作れます（月まとめ請求）</small></h2>
+  <div class="card tablewrap"><table class="mtable"><thead><tr><th>取引先</th><th>直送</th><th class="num">箱数</th><th></th></tr></thead><tbody>
+  ${gs.map(x=>`<tr><td><b>${esc(clientName(x.clientId))}</b><div class="sc-meta">${esc(zoneOfClient(state.clients.find(c=>c.id===x.clientId))||"地域未設定")}</div></td><td>${x.os.map(o=>`${esc(o.no)}（${md(o.doneDate||o.date)}・${esc(shortItem(o.item))} ${o.qty}箱）`).join("<br>")}</td><td class="num">${x.box}箱</td><td class="num"><button class="btn sm" onclick="billFromOrders('${x.clientId}')">請求書を作る</button></td></tr>`).join("")}</tbody></table></div>`;}
+window.billFromOrders=function(clientId){const x=billGroups().find(g=>g.clientId===clientId);if(!x)return;const c=state.clients.find(z=>z.id===clientId);
+  const items=[],miss=[];[...new Set(x.os.map(o=>o.item))].forEach(item=>{const qty=x.os.filter(o=>o.item===item).reduce((a,o)=>a+(+o.qty||0),0),p=wholesaleFor(item,c);
+    if(p){const it={name:p.name,qty,price:+p.price||0,tax:+p.tax||8};if(p.incl)it.incl=true;items.push(it);}else miss.push(item);});
+  editDoc(null,"請求書","発行");window.__billOrders=x.os.map(o=>o.id);
+  setTimeout(()=>{const sel=$("#d_client");if(sel)sel.value=clientId;const sub=$("#d_subj");const ms=[...new Set(x.os.map(o=>ym(o.doneDate||o.date)))];if(sub&&!sub.value)sub.value=`${ms.map(m=>+m.slice(5)+"月").join("・")}分 産地直送 ${x.box}箱`;
+    if(items.length){draftItems.length=0;items.forEach(i=>draftItems.push(i));renderItems();}
+    toast(`${clientName(clientId)}の直送 ${x.os.length}件を明細にしました${zoneOfClient(c)?`（${zoneOfClient(c)}の卸価格）`:""}${miss.length?"。商品マスタにない品目："+miss.join("、"):""}`);},50);};
 /* ---------- Shopify の注文を取り込む ----------
    Shopify管理画面「注文管理 → エクスポート（CSV）」のファイル。1注文が複数行（商品ごと）になっているので注文番号でまとめ、
    ①売上（お金の管理の収入）と ②発送元への直送の手配 を作る。同じ注文番号は2回取り込まない。返金・無効の注文は除く */
@@ -3214,7 +3232,7 @@ function openModal(title,body,ok){onOk=ok;
   document.body.appendChild(o);o.addEventListener("mousedown",e=>{if(e.target===o)closeModal();});
   $("#okbtn").onclick=()=>{if(onOk)onOk();};
 }
-window.closeModal=()=>{const o=$("#ov");if(o)o.remove();};
+window.closeModal=()=>{const o=$("#ov");if(o)o.remove();window.__billOrders=null;};
 function infoModal(title,html){const o=document.createElement("div");o.className="overlay";o.innerHTML=`<div class="modal"><h3>${title}</h3>${html}<div class="modal-foot"><span></span><button class="btn ghost" onclick="this.closest('.overlay').remove()">閉じる</button></div></div>`;document.body.appendChild(o);o.addEventListener("mousedown",e=>{if(e.target===o)o.remove();});}
 function toast(msg,action){document.querySelectorAll(".toast").forEach(x=>x.remove());const t=document.createElement("div");t.className="toast";t.setAttribute("role","status");const s=document.createElement("span");s.textContent=msg;t.appendChild(s);if(action){const b=document.createElement("button");b.textContent=action.label;b.onclick=()=>{t.remove();action.fn();};t.appendChild(b);}document.body.appendChild(t);requestAnimationFrame(()=>{t.style.opacity="1";});setTimeout(()=>{t.style.opacity="0";setTimeout(()=>t.remove(),250);},action?6000:2400);}
 function confirmModal(msg,onYes,okLabel,danger){okLabel=okLabel||"削除する";const red=danger!==false;const o=document.createElement("div");o.className="overlay";o.innerHTML='<div class="modal" style="max-width:400px"><p style="margin:0 0 20px;font-size:15px;line-height:1.6">'+esc(msg)+'</p><div style="display:flex;justify-content:flex-end;gap:10px"><button class="btn ghost" id="cno">キャンセル</button><button class="btn" id="cyes"'+(red?' style=\'background:var(--expense)\'':'')+'>'+esc(okLabel)+'</button></div></div>';document.body.appendChild(o);o.addEventListener("mousedown",e=>{if(e.target===o)o.remove();});o.querySelector("#cno").onclick=()=>o.remove();o.querySelector("#cyes").onclick=()=>{o.remove();onYes();};}
