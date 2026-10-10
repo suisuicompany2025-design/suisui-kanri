@@ -2248,6 +2248,17 @@ function prefIndex(t){t=String(t||"").trim();if(!t)return -1;const jp=t.match(/J
   let i=PREFS.findIndex(pf=>t.includes(pf));if(i>=0)return i;i=PREFS.findIndex(pf=>t.includes(pf.replace(/[都府県]$/,"")));if(i>=0)return i;
   const low=t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z]/g,"");return PREFS_EN.findIndex(e=>low.startsWith(e));}
 const zoneOfText=t=>ZONE_OF_PREF(prefIndex(t));
+/* 価格表（仕入費合計）の12区分。運賃は商品マスタの「送料」（大分県内／九州・中部／北陸はまとめて1行）から読む */
+const ZONE_DETAIL=["大分県内","九州","中国","四国","関西","中部","北陸","信越","関東","東北","北海道","沖縄"];
+const ZONE_MERGE=z=>z==="大分県内"||z==="九州"?"大分県内／九州":z==="中部"||z==="北陸"?"中部／北陸":z;
+const zoneDetailOfIdx=i=>i<0?"":i===43?"大分県内":(i>=39&&i<=45)?"九州":(i>=15&&i<=17)?"北陸":(i>=20&&i<=23)?"中部":ZONE_OF_PREF(i);
+const zoneDetailOfText=t=>zoneDetailOfIdx(prefIndex(t));
+const zoneDetailOfClient=c=>c?zoneDetailOfText([c.area,c.addr].join(" "))||(inZone(c)?"大分県内":""):"";
+function shipRates(){const r={};state.products.filter(x=>x.svc).forEach(x=>{const k=pmParts(x).kind;if(k)r[k]=pmTaxIn(x);});return r;}
+/* 発送先の地域を選んだときの1箱の仕入単価：炭酸水＝水＋段ボール＋運賃（価格表の仕入費合計）、雄町＝全国一律 */
+function zoneCost(item,zone){const p=state.products.find(x=>!x.svc&&baseName(x.name)===item&&x.cost!=null),base=p?+p.cost:1500;if(/雄町|純水/.test(item))return base;const r=shipRates()[ZONE_MERGE(zone)];return zone&&r!=null?base+BOX_COST+r:null;}
+function zoneOptsHTML(item,zone){if(!item)return`<option value="">—</option>`;if(/雄町|純水/.test(item))return`<option value="">全国一律（送料込み）— ${zoneCost(item,"").toLocaleString()}円</option>`;
+  return`<option value="">地域を選ぶ</option>`+ZONE_DETAIL.map(z=>{const c=zoneCost(item,z);return c==null?"":`<option value="${z}" ${z===zone?"selected":""}>${z} — ${c.toLocaleString()}円</option>`;}).join("");}
 const zoneOfClient=c=>c?zoneOfText([c.area,c.addr].join(" "))||(inZone(c)?"大分県内／九州":""):"";
 /* ---------- 産地直送と資材 ----------
    2026-10-10 中田さん：水翠は在庫を持たない。商品は全量、産地からお客様へ直送する（天然炭酸水＝佐藤徹商店、雄町の純水＝岡山の父ルート）。
@@ -2383,7 +2394,8 @@ const orderLinked=docId=>(state.orders||[]).some(o=>o.linkDocId===docId);
 const docProductLines=d=>{const names=new Set(state.products.filter(p=>!p.svc).map(p=>baseName(p.name)));return(d.items||[]).filter(it=>names.has(baseName(it.name))&&+it.qty).map(it=>({item:baseName(it.name),qty:+it.qty}));};
 const docHasProduct=d=>docProductLines(d).length>0;
 function duePill(o){if(!o.expected)return"";if(!orderOpen(o))return`<span class="mono" style="color:var(--muted)">${md(o.expected)}</span>`;const d=daysBetween(today(),o.expected);return d<0?`<span class="pill p-exp">${md(o.expected)}・${-d}日遅れ</span>`:d===0?`<span class="pill p-warn">今日</span>`:`<span class="pill p-gray">${md(o.expected)}・あと${d}日</span>`;}
-function ordersInbox(out){const t=today();(state.orders||[]).filter(orderOpen).forEach(o=>{if(!o.expected)return;const d=daysBetween(t,o.expected),what=`${o.item} ${o.qty}${o.unit||""}`,dr=o.shipTo==="直送";const act=dr?[["直送済にする",`orderDone('${o.id}')`]]:[["入荷を記録",`receiveOrder('${o.id}')`]];
+function ordersInbox(out){const t=today();(state.orders||[]).filter(orderOpen).forEach(o=>{if(o.deliverBy&&o.shipTo==="直送"&&daysBetween(t,o.deliverBy)<=1)out.push({sev:daysBetween(t,o.deliverBy)<0?"crit":"warn",t1:`納品希望日${daysBetween(t,o.deliverBy)<0?"を過ぎています":"が近いのに未出荷"}：${o.clientId?clientName(o.clientId):(o.to||o.supplier)}`,t2:`${o.no}・${o.item} ${o.qty}${o.unit||""}・納品希望 ${md(o.deliverBy)}`,act:[["直送済にする",`orderDone('${o.id}')`],["産地直送","stockTab='発注';go('stock')"]]});});
+  (state.orders||[]).filter(orderOpen).forEach(o=>{if(!o.expected)return;const d=daysBetween(t,o.expected),what=`${o.item} ${o.qty}${o.unit||""}`,dr=o.shipTo==="直送";const act=dr?[["直送済にする",`orderDone('${o.id}')`]]:[["入荷を記録",`receiveOrder('${o.id}')`]];
   if(d<0)out.push({sev:"warn",t1:`${dr?"直送の予定日":"入荷予定日"}を過ぎています：${o.supplier}`,t2:`${o.no}・${what}・予定 ${md(o.expected)}（${-d}日経過）`,act});
   else if(d<=1)out.push({sev:"info",t1:`${d===0?"今日":"明日"}${dr?"直送予定":"入荷予定"}：${o.supplier}`,t2:`${o.no}・${what}`,act});});}
 function stockTabsHTML(){const n=(state.orders||[]).filter(orderOpen).length;return`<div class="filters">${[["発注","産地直送の手配"],["資材","資材（段ボール等）"]].map(([t,l])=>`<button class="chip ${stockTab===t?"on":""}" onclick="stockTab='${t}';vStock()">${l}${t==="発注"&&n?`（${n}）`:""}</button>`).join("")}</div>`;}
@@ -2403,10 +2415,10 @@ function vOrders(){
   </div>
   ${billHTML()}${payHTML()}
   <h2 class="sec">直送の手配一覧</h2>
-  <div class="card tablewrap"><table class="mtable"><thead><tr><th>手配番号</th><th>発送元</th><th>品目・数量</th><th>届け先</th><th>発送予定</th><th>状態</th><th></th></tr></thead><tbody>
-  ${os.length?os.map(o=>{const st=orderState(o),doc=o.linkDocId?state.docs.find(x=>x.id===o.linkDocId):null;return`<tr><td class="mono">${esc(o.no)}<div style="font-size:11.5px;color:var(--muted);font-family:var(--font-b)">${md(o.date)} 手配</div></td><td style="white-space:nowrap">${esc(supShort(o.supplier))}</td><td><b>${esc(o.item)}</b> ${o.qty}${esc(o.unit||"")}${o.sample?` <span class="pill p-teal">サンプル</span>`:""}${o.extId?` <span class="pill p-gray">Shopify</span>`:""}</td>
-    <td>${o.shipTo==="直送"?`<span class="pill p-kraft">産地直送</span> ${esc(o.clientId?clientName(o.clientId):(o.to||""))}${doc?`<div style="font-size:11.5px;color:var(--muted)">受注 ${esc(doc.number)}</div>`:""}`:`<span class="pill p-teal">水翠に入荷（資材）</span>`}</td>
-    <td>${duePill(o)}</td><td><span class="pill ${st[0]}">${st[1]}</span></td>
+  <div class="card tablewrap"><table class="mtable"><thead><tr><th>手配番号</th><th>発送元</th><th>品目・数量</th><th>届け先</th><th>出荷予定／納品希望</th><th>状態</th><th></th></tr></thead><tbody>
+  ${os.length?os.map(o=>{const st=orderState(o),doc=o.linkDocId?state.docs.find(x=>x.id===o.linkDocId):null;return`<tr><td class="mono">${esc(o.no)}<div style="font-size:11.5px;color:var(--muted);font-family:var(--font-b)">${md(o.date)} 発注</div></td><td style="white-space:nowrap">${esc(supShort(o.supplier))}</td><td><b>${esc(o.item)}</b> ${o.qty}${esc(o.unit||"")}${o.sample?` <span class="pill p-teal">サンプル</span>`:""}${o.extId?` <span class="pill p-gray">Shopify</span>`:""}</td>
+    <td>${o.shipTo==="直送"?`<span class="pill p-kraft">産地直送</span> ${esc(o.clientId?clientName(o.clientId):(o.to||""))}${o.zone?`<div style="font-size:11.5px;color:var(--muted)">${esc(o.zone)}・仕入 ${o.unitCost!=null?(+o.unitCost).toLocaleString()+"円":"未設定"}</div>`:""}${doc?`<div style="font-size:11.5px;color:var(--muted)">受注 ${esc(doc.number)}</div>`:""}`:`<span class="pill p-teal">水翠に入荷（資材）</span>`}</td>
+    <td>${duePill(o)}${o.deliverBy?`<div style="font-size:11.5px;color:${orderOpen(o)&&o.deliverBy<=addDays(today(),1)?"var(--expense)":"var(--muted)"};margin-top:3px">納品希望 ${md(o.deliverBy)}</div>`:""}</td><td><span class="pill ${st[0]}">${st[1]}</span></td>
     <td class="num" style="white-space:nowrap">${orderOpen(o)?(o.shipTo==="直送"?`<button class="linkbtn" style="color:var(--income)" onclick="orderDone('${o.id}')">直送済にする</button>`:`<button class="linkbtn" style="color:var(--income)" onclick="receiveOrder('${o.id}')">入荷を記録</button>`):""}<button class="linkbtn" onclick="editOrder('${o.id}')">編集</button><button class="linkbtn" style="color:var(--expense)" onclick="softDelete('orders','${o.id}','発注')">削除</button></td></tr>`;}).join("")
   :`<tr><td colspan="7" class="empty">まだ手配はありません。請求書・領収書を作ったら、書類の「産地直送を手配」から発送元への手配をワンタップで作れます。</td></tr>`}</tbody></table></div>`;
 }
@@ -2415,39 +2427,54 @@ window.odShip=()=>{$("#od_dropbox").hidden=$("#od_ship").value!=="直送";};
 window.editOrder=function(id,pf){const o=id?(state.orders||[]).find(x=>x.id===id):null,v=o||pf||{},items=[...dropItems(),...stockItems()];
   const sel=v.item?items.find(i=>i.name===v.item):items.find(i=>i.kind==="商品");
   const isDrop=!v.shipTo?(!sel||sel.kind==="商品"):v.shipTo==="直送";
+  /* 発送先の地域：保存済み → 届け先の取引先の都道府県 → 書類の明細（卸の地域・送料の行）の順で決める */
+  const cl0=state.clients.find(c=>c.id===v.clientId),doc0=v.linkDocId?state.docs.find(d=>d.id===v.linkDocId):null;
+  let zone0=v.zone||zoneDetailOfClient(cl0);if(!zone0&&doc0){(doc0.items||[]).forEach(it=>{const pt=pmParts({name:it.name});if(!zone0&&pt.kind==="卸"&&pt.rest[0])zone0=pt.rest[0].split("／")[0];if(!zone0&&/^送料/.test(pt.base)&&pt.kind)zone0=pt.kind.split("／")[0];});}
+  const cost0=sel&&sel.kind==="商品"?(zoneCost(sel.name,zone0)!=null?zoneCost(sel.name,zone0):dropCost(sel.name,null).cost):"";
   const docs=state.docs.filter(d=>isIssued(d)&&(d.type==="請求書"||d.type==="領収書")&&docHasProduct(d)&&(!orderLinked(d.id)||d.id===v.linkDocId)).sort((a,b)=>(b.issueDate||"").localeCompare(a.issueDate||"")).slice(0,30);
   openModal(o?"手配を編集":"産地直送を手配",`
-    <div class="row3"><div class="field"><label>発送元（発注先）</label><input id="od_sup" list="odsups" value="${esc(v.supplier||(sel?SUPPLIER_OF(sel.name):SUPPLIERS[0]))}"><datalist id="odsups">${SUPPLIERS.map(s=>`<option>${esc(s)}</option>`).join("")}</datalist></div>
-    <div class="field"><label>手配日</label><input type="date" id="od_date" value="${v.date||today()}"></div>
-    <div class="field"><label>発送予定日</label><input type="date" id="od_exp" value="${v.expected||""}"></div></div>
-    <div style="display:flex;gap:6px;margin:-6px 0 12px;flex-wrap:wrap;align-items:center"><span style="font-size:12px;color:var(--muted)">手配日から：</span><button type="button" class="chip" onclick="odDue(3)">3日</button><button type="button" class="chip" onclick="odDue(7)">1週間</button><button type="button" class="chip" onclick="odDue(14)">2週間</button></div>
-    <div class="row3"><div class="field"><label>品目</label><select id="od_item" onchange="odItem()">${["商品","資材"].map(k=>{const g=items.filter(i=>i.kind===k);return g.length?`<optgroup label="${k}">${g.map(i=>`<option value="${i.key}" ${sel&&sel.key===i.key?"selected":""}>${esc(i.name)}</option>`).join("")}</optgroup>`:"";}).join("")}</select></div>
-    <div class="field"><label>数量</label><input type="number" id="od_qty" min="1" value="${v.qty||1}"></div>
-    <div class="field"><label>仕入単価（円・税込・1箱）</label><input type="number" id="od_cost" value="${v.unitCost!=null?v.unitCost:(sel&&sel.kind==="商品"?dropCost(sel.name,null).cost:"")}"></div></div>
+    <div class="row2"><div class="field"><label>発送元（発注先）</label><input id="od_sup" list="odsups" value="${esc(v.supplier||(sel?SUPPLIER_OF(sel.name):SUPPLIERS[0]))}"><datalist id="odsups">${SUPPLIERS.map(s=>`<option>${esc(s)}</option>`).join("")}</datalist></div>
+    <div class="field"><label>発注日</label><input type="date" id="od_date" value="${v.date||today()}"></div></div>
+    <div class="row2"><div class="field"><label>出荷予定日</label><input type="date" id="od_exp" value="${v.expected||""}"></div>
+    <div class="field"><label>納品希望日</label><input type="date" id="od_deliver" value="${v.deliverBy||""}"></div></div>
+    <div style="display:flex;gap:6px;margin:-6px 0 12px;flex-wrap:wrap;align-items:center"><span style="font-size:12px;color:var(--muted)">出荷予定日を発注日から：</span><button type="button" class="chip" onclick="odDue(1)">翌日</button><button type="button" class="chip" onclick="odDue(3)">3日後</button><button type="button" class="chip" onclick="odDue(7)">1週間後</button></div>
+    <div class="row2"><div class="field"><label>品目</label><select id="od_item" onchange="odItem()">${["商品","資材"].map(k=>{const g=items.filter(i=>i.kind===k);return g.length?`<optgroup label="${k}">${g.map(i=>`<option value="${i.key}" ${sel&&sel.key===i.key?"selected":""}>${esc(i.name)}</option>`).join("")}</optgroup>`:"";}).join("")}</select></div>
+    <div class="field"><label>数量</label><input type="number" id="od_qty" min="1" value="${v.qty||1}"></div></div>
+    <div class="row2" id="od_zonebox" ${sel&&sel.kind==="商品"?"":"hidden"}><div class="field"><label>発送先の地域</label><select id="od_zone" onchange="odZone()">${zoneOptsHTML(sel&&sel.kind==="商品"?sel.name:"",zone0)}</select></div>
+    <div class="field"><label>仕入単価（円・税込・1箱）</label><input type="number" id="od_cost" value="${v.unitCost!=null?v.unitCost:cost0}"></div></div>
+    <div class="field" id="od_costbox2" ${sel&&sel.kind==="商品"?"hidden":""}><label>単価（円・税込）</label><input type="number" id="od_cost2" value="${v.unitCost!=null&&sel&&sel.kind!=="商品"?v.unitCost:""}"></div>
     <div class="field"><label>届け先</label><select id="od_ship" onchange="odShip()"><option value="直送" ${isDrop?"selected":""}>お客様へ直送（産地直送）</option><option value="入荷" ${!isDrop?"selected":""}>水翠に入荷（資材のみ）</option></select></div>
-    <div id="od_dropbox" ${isDrop?"":"hidden"}><div class="row2"><div class="field"><label>直送先の取引先</label><select id="od_client"><option value="">（選択）</option>${state.clients.map(c=>`<option value="${c.id}" ${v.clientId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
+    <div id="od_dropbox" ${isDrop?"":"hidden"}><div class="row2"><div class="field"><label>直送先の取引先</label><select id="od_client" onchange="odClient()"><option value="">（選択）</option>${state.clients.map(c=>`<option value="${c.id}" ${v.clientId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div>
       <div class="field"><label>受注の書類（請求書・領収書）</label><select id="od_doc"><option value="">（なし）</option>${docs.map(d=>`<option value="${d.id}" ${v.linkDocId===d.id?"selected":""}>${esc(d.number)}・${esc(clientName(d.clientId))}・${docProductLines(d).map(l=>l.item.replace(/ BIB\d+L/,"")+" "+l.qty).join("、")}</option>`).join("")}</select></div></div>
       <p style="margin:-4px 0 10px;font-size:12px;color:var(--muted)">受注の書類を選ぶと、どの売上の発送か分かるように結びつけます。</p></div>
     <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0 0 12px"><input type="checkbox" id="od_sample" style="width:auto;margin:0" ${v.sample?"checked":""}> サンプル（無償で提供）<span style="color:var(--muted);font-size:12px">直送済にしたときの支出は「広告宣伝費」で記録</span></label>
     <div class="field"><label>メモ</label><input id="od_memo" value="${esc(v.memo||"")}" placeholder="例：電話で依頼／メールで発注"></div>`,()=>{
     const it=items.find(i=>i.key===$("#od_item").value),q=+$("#od_qty").value;if(!it||!q){toast("品目と数量を入れてください");return false;}
     const ship=it.kind==="商品"?"直送":$("#od_ship").value; /* 商品は必ず直送（在庫を持たない） */
-    const n={id:o?o.id:uid(),no:o?o.no:poNo(),supplier:$("#od_sup").value.trim()||SUPPLIERS[0],date:$("#od_date").value||today(),expected:$("#od_exp").value,item:it.name,kind:it.kind,unit:it.unit,qty:q,unitCost:$("#od_cost").value===""?null:+$("#od_cost").value,shipTo:ship,clientId:ship==="直送"?$("#od_client").value:"",linkDocId:ship==="直送"?$("#od_doc").value:"",memo:$("#od_memo").value.trim(),doneDate:o?o.doneDate||"":"",sample:!!($("#od_sample")&&$("#od_sample").checked),to:o?o.to||"":(v.to||""),extId:o?o.extId||"":(v.extId||"")};
+    const cv=it.kind==="商品"?$("#od_cost").value:$("#od_cost2").value;
+    const n={id:o?o.id:uid(),no:o?o.no:poNo(),supplier:$("#od_sup").value.trim()||SUPPLIERS[0],date:$("#od_date").value||today(),expected:$("#od_exp").value,deliverBy:$("#od_deliver").value,zone:it.kind==="商品"?$("#od_zone").value:"",item:it.name,kind:it.kind,unit:it.unit,qty:q,unitCost:cv===""?null:+cv,shipTo:ship,clientId:ship==="直送"?$("#od_client").value:"",linkDocId:ship==="直送"?$("#od_doc").value:"",memo:$("#od_memo").value.trim(),doneDate:o?o.doneDate||"":"",sample:!!($("#od_sample")&&$("#od_sample").checked),to:o?o.to||"":(v.to||""),extId:o?o.extId||"":(v.extId||"")};
     if(n.linkDocId&&!n.clientId){const d=state.docs.find(x=>x.id===n.linkDocId);if(d)n.clientId=d.clientId;}
     state.orders=state.orders||[];if(o)Object.assign(o,n);else state.orders.push(n);
     const used=n.kind==="商品"?(state.materials||[]).filter(x=>+x.perShip>0&&(!x.forProduct||x.forProduct===n.item)).map(x=>`${x.name} ${q*x.perShip}${x.unit}`):[];
     stockTab="発注";save();closeModal();render();toast(`${n.no} を記録しました${used.length&&!o?`（${used.join("・")}を使用として計上）`:""}`);});
   /* 品目を変えたら、発送元・届け先・単価をその品目に合わせる（手で変えた欄はそのまま） */
-  window.odItem=()=>{const it=items.find(i=>i.key===$("#od_item").value);if(!it)return;const sup=$("#od_sup"),cost=$("#od_cost"),ship=$("#od_ship");
-    if(!sup.dataset.touched)sup.value=it.kind==="商品"?SUPPLIER_OF(it.name):"";if(!cost.dataset.touched)cost.value=it.kind==="商品"?dropCost(it.name,null).cost:"";
-    ship.value=it.kind==="商品"?"直送":"入荷";ship.disabled=it.kind==="商品";odShip();};
-  setTimeout(()=>{["od_sup","od_cost"].forEach(k=>{const e=$("#"+k);if(e)e.addEventListener("input",()=>{e.dataset.touched=1;});});const s0=$("#od_ship");if(s0&&sel&&sel.kind==="商品")s0.disabled=true;},0);
+  window.odItem=()=>{const it=items.find(i=>i.key===$("#od_item").value);if(!it)return;const sup=$("#od_sup"),ship=$("#od_ship"),isP=it.kind==="商品",zs=$("#od_zone");
+    if(!sup.dataset.touched)sup.value=isP?SUPPLIER_OF(it.name):"";$("#od_zonebox").hidden=!isP;$("#od_costbox2").hidden=isP;
+    if(isP){const z=zs.value;zs.innerHTML=zoneOptsHTML(it.name,z);odZone(true);}
+    ship.value=isP?"直送":"入荷";ship.disabled=isP;odShip();};
+  /* 地域を選ぶと、その地域の仕入単価（価格表の仕入費合計）を入れる */
+  window.odZone=soft=>{const it=items.find(i=>i.key===$("#od_item").value),cost=$("#od_cost");if(!it||it.kind!=="商品")return;if(soft&&cost.dataset.touched)return;
+    const c=zoneCost(it.name,$("#od_zone").value);cost.value=c!=null?c:dropCost(it.name,null).cost;delete cost.dataset.touched;};
+  /* 取引先を選ぶと、その都道府県の地域を選ぶ（地域を手で選んでいなければ） */
+  window.odClient=()=>{const zs=$("#od_zone");if(!zs||zs.dataset.touched)return;const z=zoneDetailOfClient(state.clients.find(c=>c.id===$("#od_client").value));if(z&&[...zs.options].some(op=>op.value===z)){zs.value=z;odZone();}};
+  setTimeout(()=>{["od_sup","od_cost"].forEach(k=>{const e=$("#"+k);if(e)e.addEventListener("input",()=>{e.dataset.touched=1;});});const zz=$("#od_zone");if(zz)zz.addEventListener("change",()=>{zz.dataset.touched=1;});const s0=$("#od_ship");if(s0&&sel&&sel.kind==="商品")s0.disabled=true;},0);
 };
 window.orderFromDoc=function(docId){const d=state.docs.find(x=>x.id===docId);if(!d)return;const ls=docProductLines(d);if(!ls.length){toast("この書類に商品（BIB）の明細がありません");return;}
-  const groups=[...new Set(ls.map(x=>x.item))].map(item=>({item,qty:ls.filter(x=>x.item===item).reduce((a,x)=>a+x.qty,0),...dropCost(item,d)}));
-  if(groups.length===1){const g=groups[0];editOrder(null,{supplier:SUPPLIER_OF(g.item),item:g.item,qty:g.qty,unitCost:g.cost,shipTo:"直送",clientId:d.clientId,linkDocId:d.id,expected:addDays(today(),3),memo:`${d.number} の受注分・仕入 ${g.note}`});return;}
+  const zc=zoneDetailOfClient(state.clients.find(c=>c.id===d.clientId));
+  const groups=[...new Set(ls.map(x=>x.item))].map(item=>{const dc=dropCost(item,d),zz=zoneCost(item,zc);return {item,qty:ls.filter(x=>x.item===item).reduce((a,x)=>a+x.qty,0),cost:zz!=null?zz:dc.cost,note:zz!=null&&!/雄町|純水/.test(item)?`${zc}の仕入費合計`:dc.note,zone:/雄町|純水/.test(item)?"":zc};});
+  if(groups.length===1){const g=groups[0];editOrder(null,{supplier:SUPPLIER_OF(g.item),item:g.item,qty:g.qty,unitCost:g.cost,zone:g.zone,shipTo:"直送",clientId:d.clientId,linkDocId:d.id,expected:addDays(today(),3),memo:`${d.number} の受注分・仕入 ${g.note}`});return;}
   /* 炭酸水と雄町が両方あるときは、発送元ごとに手配を2件まとめて作る */
-  state.orders=state.orders||[];const made=groups.map(g=>{const n={id:uid(),no:poNo(),supplier:SUPPLIER_OF(g.item),date:today(),expected:addDays(today(),3),item:g.item,kind:"商品",unit:"箱",qty:g.qty,unitCost:g.cost,shipTo:"直送",clientId:d.clientId,linkDocId:d.id,memo:`${d.number} の受注分・仕入 ${g.note}`,doneDate:""};state.orders.push(n);return n;});
+  state.orders=state.orders||[];const made=groups.map(g=>{const n={id:uid(),no:poNo(),supplier:SUPPLIER_OF(g.item),date:today(),expected:addDays(today(),3),item:g.item,kind:"商品",unit:"箱",qty:g.qty,unitCost:g.cost,zone:g.zone,shipTo:"直送",clientId:d.clientId,linkDocId:d.id,memo:`${d.number} の受注分・仕入 ${g.note}`,doneDate:""};state.orders.push(n);return n;});
   stockTab="発注";save();go("stock");toast(`発送元ごとに${made.length}件の直送を手配しました（${made.map(n=>n.supplier.replace(/（.*）/,"")).join("・")}）`,{label:"元に戻す",fn:()=>{const ids=new Set(made.map(n=>n.id));state.orders=state.orders.filter(x=>!ids.has(x.id));save();render();}});};
 window.receiveOrder=function(id){const o=(state.orders||[]).find(x=>x.id===id);if(!o)return;const got=orderReceived(o),left=Math.max(0,+o.qty-got),isP=o.kind==="商品";
   openModal(`入荷を記録：${esc(o.no)}`,`<p style="margin:0 0 12px;font-size:13px;color:var(--text2)">${esc(o.supplier)}・${esc(o.item)}（発注 ${o.qty}${esc(o.unit||"")}・入荷済み ${got}）</p>
@@ -2463,7 +2490,7 @@ window.receiveOrder=function(id){const o=(state.orders||[]).find(x=>x.id===id);i
     save();closeModal();render();toast(`${o.item} を${q}${o.unit||""}入荷しました`,{label:"元に戻す",fn:()=>{state.stockMoves=state.stockMoves.filter(x=>x.id!==mv.id);if(tx)state.txns=state.txns.filter(x=>x.id!==tx.id);save();render();}});});};
 window.orderDone=function(id){const o=(state.orders||[]).find(x=>x.id===id);if(!o)return;
   openModal(`直送済にする：${esc(o.no)}`,`<p style="margin:0 0 12px;font-size:13px;color:var(--text2)">${esc(o.supplier)}からお客様（${esc(o.clientId?clientName(o.clientId):"未設定")}）へ ${esc(o.item)} ${o.qty}${esc(o.unit||"")} を直送。</p>
-    <div class="field"><label>発送日</label><input type="date" id="dn_d" value="${today()}"></div>
+    <div class="field"><label>出荷日（実際に出荷した日）</label><input type="date" id="dn_d" value="${today()}"></div>
     <label style="display:flex;gap:8px;align-items:center;font-size:13px"><input type="checkbox" id="dn_buy" style="width:auto;margin:0"> お金の管理にも支出として記録する（${o.unitCost!=null?yen(o.unitCost*o.qty):"単価未設定"}）<span style="color:var(--muted);font-size:11.5px">（その場で支払ったときだけ。月末にまとめて払うなら、チェックせずに「発送元への支払い」から記録）</span></label>`,()=>{
     const date=$("#dn_d").value||today();o.doneDate=date;let tx=null;
     if($("#dn_buy").checked&&o.unitCost){tx={id:uid(),type:"支出",date,category:o.sample?"広告宣伝費":"仕入高",amount:o.unitCost*o.qty,memo:`${o.supplier} ${o.item} ${o.qty}${o.unit||""}・${o.sample?"サンプル無償提供":"産地直送"}（${o.no}）`};state.txns.push(tx);o.txId=tx.id;}
@@ -2529,7 +2556,7 @@ function shopifyPreview(rows){let list;try{list=shopifyParse(rows);}catch(e){toa
     const rates={};state.products.filter(x=>x.svc).forEach(x=>{rates[pmParts(x).kind]=pmTaxIn(x);});const addT=[],addO=[];state.orders=state.orders||[];
     nw.forEach(o=>{const tx={id:uid(),type:"収入",date:o.date,category:o.sub?"EC定期売上":"売上高",amount:o.total,memo:`Shopify ${o.name}${o.to?" "+o.to:""}`,extId:"shopify:"+o.name};state.txns.push(tx);addT.push(tx.id);
       o.goods.forEach(g=>{const dc=dropCost(g.item,null),cost=/雄町|純水/.test(g.item)||!o.zone||rates[o.zone]==null?dc.cost:dc.cost+rates[o.zone];
-        const n={id:uid(),no:poNo(),supplier:SUPPLIER_OF(g.item),date:o.date,expected:addDays(o.date,3),item:g.item,kind:"商品",unit:"箱",qty:g.qty,unitCost:cost,shipTo:"直送",clientId:"",linkDocId:"",to:`${o.to}（${o.zone||o.pref||"地域不明"}）`,memo:`Shopify ${o.name}`,doneDate:"",extId:"shopify:"+o.name};state.orders.push(n);addO.push(n.id);});});
+        const n={id:uid(),no:poNo(),supplier:SUPPLIER_OF(g.item),date:o.date,expected:addDays(o.date,3),zone:/雄町|純水/.test(g.item)?"":zoneDetailOfText(o.pref),item:g.item,kind:"商品",unit:"箱",qty:g.qty,unitCost:cost,shipTo:"直送",clientId:"",linkDocId:"",to:`${o.to}（${o.zone||o.pref||"地域不明"}）`,memo:`Shopify ${o.name}`,doneDate:"",extId:"shopify:"+o.name};state.orders.push(n);addO.push(n.id);});});
     stockTab="発注";save();closeModal();go("stock");
     toast(`${nw.length}件の注文を取り込みました（売上${addT.length}件・直送の手配${addO.length}件）`,{label:"元に戻す",fn:()=>{const a=new Set(addT),b=new Set(addO);state.txns=state.txns.filter(x=>!a.has(x.id));state.orders=state.orders.filter(x=>!b.has(x.id));save();render();}});});}
 /* ---------- 変換前データの2重計上チェック ---------- */
@@ -2668,7 +2695,7 @@ function aiSysPrompt(){return "あなたは「スイ」。水翠（すいすい�
 "「記録の書き方」を聞かれたら、次のような例を示す：「白水鉱泉を沖縄ハーバービューホテルに3箱発送した、記録して」「今日タクシー代2,000円を旅費交通費で記録して」「明日までに請求書を送るToDoを追加して」。";}
 function aiContext(){
   const t=today(),m=ym(t);
-  const stockLines=(state.orders||[]).filter(o=>o.kind==="商品"&&orderOpen(o)).map(o=>`${o.no}：${o.supplier.replace(/（.*）/,"")}→${o.clientId?clientName(o.clientId):"届け先未設定"}・${o.item} ${o.qty}${o.unit||"箱"}（発送予定 ${o.expected?md(o.expected):"未定"}）`).join("\n")||"（なし）";
+  const stockLines=(state.orders||[]).filter(o=>o.kind==="商品"&&orderOpen(o)).map(o=>`${o.no}：${o.supplier.replace(/（.*）/,"")}→${o.clientId?clientName(o.clientId):"届け先未設定"}・${o.item} ${o.qty}${o.unit||"箱"}（出荷予定 ${o.expected?md(o.expected):"未定"}${o.deliverBy?"・納品希望 "+md(o.deliverBy):""}）`).join("\n")||"（なし）";
   const unpaidDocs=state.docs.filter(d=>d.type==="請求書"&&d.status!=="入金済"&&isIssued(d));
   const unpaidTotal=unpaidDocs.reduce((a,d)=>a+calc(d).total,0);
   const unpaidLines=unpaidDocs.map(d=>`${clientName(d.clientId)}：${yen(calc(d).total)}（期限${d.dueDate?md(d.dueDate):"未設定"}）${d.dueDate&&d.dueDate<t?"※超過":""}`).join("\n")||"（なし）";
@@ -2696,7 +2723,8 @@ const AI_TOOLS=[
      client:{type:"string",description:"届け先の取引先名（営業先・取引先に登録済みの名前。一部一致でよい）"},
      product:{type:"string",description:"商品名（例：天然炭酸水／雄町の純水。一部一致でよい）"},
      qty:{type:"integer",description:"箱数"},
-     expected:{type:"string",description:"発送予定日 YYYY-MM-DD。省略時は3日後"},
+     expected:{type:"string",description:"出荷予定日 YYYY-MM-DD。省略時は3日後"},
+     deliver_by:{type:"string",description:"納品希望日 YYYY-MM-DD（お客様の希望がある場合）"},
      memo:{type:"string"}
    },required:["product","qty"]},
    execute(input){
@@ -2705,11 +2733,11 @@ const AI_TOOLS=[
      if(!it)throw new Error("その商品が見つかりません。候補："+items.map(i=>i.name).join("、"));
      const qty=Math.round(+input.qty||0);if(qty<1)throw new Error("箱数を指定してください");
      const c=input.client?aiFindClient(input.client):null;if(input.client&&!c)throw new Error("取引先「"+input.client+"」が見つかりません。先に営業先に追加してください");
-     const dc=dropCost(it.name,null);
-     const n={id:uid(),no:poNo(),supplier:SUPPLIER_OF(it.name),date:today(),expected:String(input.expected||addDays(today(),3)),item:it.name,kind:"商品",unit:"箱",qty,unitCost:dc.cost,shipTo:"直送",clientId:c?c.id:"",linkDocId:"",memo:String(input.memo||"")+(input.memo?"・":"")+"仕入 "+dc.note,doneDate:""};
+     const dc=dropCost(it.name,null),zc=zoneDetailOfClient(c),zz=zoneCost(it.name,zc);
+     const n={id:uid(),no:poNo(),supplier:SUPPLIER_OF(it.name),date:today(),expected:String(input.expected||addDays(today(),3)),deliverBy:String(input.deliver_by||""),zone:/雄町|純水/.test(it.name)?"":zc,item:it.name,kind:"商品",unit:"箱",qty,unitCost:zz!=null?zz:dc.cost,shipTo:"直送",clientId:c?c.id:"",linkDocId:"",memo:String(input.memo||"")+(input.memo?"・":"")+"仕入 "+dc.note,doneDate:""};
      state.orders=state.orders||[];state.orders.push(n);save();render();
      toast(`${n.no} 直送を手配しました`,{label:"元に戻す",fn:()=>{state.orders=state.orders.filter(x=>x.id!==n.id);save();render();}});
-     return `手配しました：${n.no}／${n.supplier}→${c?c.name:"届け先未設定"}／${it.name} ${qty}箱／発送予定 ${n.expected}`;
+     return `手配しました：${n.no}／${n.supplier}→${c?c.name:"届け先未設定"}／${it.name} ${qty}箱／出荷予定 ${n.expected}${n.deliverBy?"／納品希望 "+n.deliverBy:""}／仕入単価 ${n.unitCost}円`;
    }},
   {name:"record_txn",description:"収入・支出を1件記録する（実際に記録され、お金の管理に反映される）。",
    inputSchema:{type:"object",properties:{
